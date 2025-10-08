@@ -24,12 +24,19 @@ export default function Sidebar({ userProfile }) {
              { name: 'Criativos por Score', href: '/Dashboards/criativos-por-score' },
              { name: 'Análise de Campanha', href: '/Dashboards/analise-campanha' },
              { name: 'Resumo Diario', href: '/Dashboards/resumo-diario' },
+             { name: 'Evolução de Canal', href: '/Dashboards/evolucao-de-canal' },
+             { name: 'Lead Scoring', href: '/Dashboards/lead-scoring' },
+             { name: 'Perfil de Scoring', href: '/Dashboards/perfil-score' },
+             { name: 'Perfil de MQL', href: '/Dashboards/perfil-mql' },
+             
          ],
          OPERACIONAL: [
              { name: 'Lançamentos', href: '/Operacional/lancamentos' },
              { name: 'Regras de Pontuação', href: '/Operacional/regras-de-pontuacao' },
              { name: 'Banco de Perguntas', href: '/Operacional/banco-de-perguntas' },
              { name: 'Clientes', href: '/Operacional/clientes' },
+             { name: 'Gerador de Links', href: '/Operacional/gerador-links' },
+             
          ],
          FERRAMENTAS: [
              { name: 'Acerto respostas', href: '/Ferramentas/ferramentas-de-teste' },
