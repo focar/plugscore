@@ -1,4 +1,3 @@
-// src/components/Header.jsx
 'use client';
 
 import { useContext, useEffect } from 'react';
@@ -16,16 +15,14 @@ export default function Header({ userProfile }) {
     const { 
         theme, setTheme, headerContent, 
         selectedClientId, setSelectedClientId, 
-        allClients, setAllClients, // Pegando a função setAllClients
+        allClients, setAllClients, 
         setIsMobileMenuOpen 
     } = useContext(AppContext);
     
     const supabase = createClientComponentClient();
 
-    // --- NOVA LÓGICA PARA BUSCAR CLIENTES ---
     useEffect(() => {
         const fetchClients = async () => {
-            // A verificação de admin agora usa o userProfile que vem do servidor, que é mais confiável
             if (userProfile?.role === 'admin') {
                 const { data: clientsData, error } = await supabase.from('clientes').select('id, nome').order('nome');
                 if (error) {
@@ -35,12 +32,11 @@ export default function Header({ userProfile }) {
                     setAllClients(clientsData || []);
                 }
             } else {
-                // Garante que a lista esteja vazia para não-admins
                 setAllClients([]);
             }
         };
         fetchClients();
-    }, [userProfile, setAllClients, supabase]); // Executa quando o userProfile estiver disponível
+    }, [userProfile, setAllClients, supabase]); 
 
 
     const toggleTheme = () => {
@@ -73,7 +69,6 @@ export default function Header({ userProfile }) {
                 </div>
                 
                 <div className="flex-shrink-0 flex items-center gap-4">
-                    {/* A condição para exibir o dropdown permanece a mesma, mas agora ela funcionará de forma confiável */}
                     {(userProfile?.role === 'admin' && allClients.length > 0) && (
                         <div className="flex items-center gap-2">
                             <label htmlFor="client-filter" className="text-sm font-medium text-gray-500 dark:text-gray-400 hidden sm:block">Cliente:</label>
@@ -103,3 +98,4 @@ export default function Header({ userProfile }) {
         </header>
     );
 }
+

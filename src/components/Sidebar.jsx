@@ -32,7 +32,7 @@ export default function Sidebar({ userProfile }) {
              { name: 'Regras de Pontuação', href: '/Operacional/regras-de-pontuacao' },
              { name: 'Banco de Perguntas', href: '/Operacional/banco-de-perguntas' },
              { name: 'Clientes', href: '/Operacional/clientes' },
-             { name: 'Gerador de Links', href: '/Operacional/gerador-de-links' },
+             { name: 'Gerador de Links', href: '/Operacional/gerador-links' },
          ],
          FERRAMENTAS: [
              { name: 'Acerto respostas', href: '/Ferramentas/ferramentas-de-teste' },

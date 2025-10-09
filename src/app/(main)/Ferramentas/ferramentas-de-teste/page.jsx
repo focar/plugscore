@@ -1,4 +1,4 @@
-// src/app/(main)/Ferramentas/ferramentas-de-teste/page.jsx
+// /src/app/(main)/Ferramentas/ferramentas-de-teste/page.jsx
 'use client';
 
 import React, { useState, useEffect, useContext } from 'react';
@@ -9,12 +9,11 @@ import { AppContext } from '@/context/AppContext';
 const RefreshCwIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h5" /></svg>);
 const Trash2Icon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg>);
 const PlayIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polygon points="5 3 19 12 5 21 5 3" /></svg>);
-// --- ALTERAÇÃO: Novo ícone para o botão de apagar tudo ---
 const AlertTriangleIcon = (props) => ( <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>);
 
 
 export default function FerramentasDeTestePage() {
-    const { setHeaderContent } = useContext(AppContext);
+    const { setHeaderContent, selectedClientId } = useContext(AppContext);
     const supabase = createClientComponentClient();
     const [lancamentos, setLancamentos] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -22,23 +21,34 @@ export default function FerramentasDeTestePage() {
     const [feedback, setFeedback] = useState({ type: '', message: '' });
 
     useEffect(() => {
-        setHeaderContent({ title: 'Ferramentas de Teste' });
-        fetchLancamentos();
-        return () => setHeaderContent(null);
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+        setHeaderContent({ title: 'Ferramentas de Teste', controls: null });
+        return () => setHeaderContent({ title: '', controls: null });
+    }, [setHeaderContent]);
 
-    async function fetchLancamentos() {
-        setLoading(true);
-        const { data, error } = await supabase.from('lancamentos').select('id, nome, codigo');
-        if (error) {
-            setFeedback({ type: 'error', message: 'Erro ao carregar lançamentos: ' + error.message });
-        } else {
-            setLancamentos(data || []);
+    useEffect(() => {
+        async function fetchLancamentos() {
+            setLoading(true);
+            let query = supabase.from('lancamentos').select('id, nome, codigo');
+
+            if (selectedClientId && selectedClientId !== 'all') {
+                query = query.eq('cliente_id', selectedClientId);
+            }
+            
+            query = query.order('codigo', { ascending: true });
+
+            const { data, error } = await query;
+            
+            if (error) {
+                setFeedback({ type: 'error', message: 'Erro ao carregar lançamentos: ' + error.message });
+            } else {
+                setLancamentos(data || []);
+            }
+            setLoading(false);
         }
-        setLoading(false);
-    }
 
-    // --- ALTERAÇÃO: Adicionada a lógica para a nova ação 'delete_all_data' ---
+        fetchLancamentos();
+    }, [selectedClientId, supabase]);
+
     const handleAction = async (launchCode, actionType) => {
         setFeedback({ type: '', message: '' });
         
@@ -80,7 +90,7 @@ export default function FerramentasDeTestePage() {
     };
 
     if (loading) {
-        return <div className="text-center p-8">A carregar lançamentos...</div>;
+        return <div className="text-center p-8 dark:text-gray-300">A carregar lançamentos...</div>;
     }
 
     return (
@@ -90,17 +100,17 @@ export default function FerramentasDeTestePage() {
             </p>
 
             {feedback.message && (
-                <div className={`mb-4 p-4 rounded-md text-sm ${feedback.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                <div className={`mb-4 p-4 rounded-md text-sm ${feedback.type === 'success' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'}`}>
                     {feedback.message}
                 </div>
             )}
 
             <div className="space-y-4">
-                {lancamentos.map((launch) => (
+                {lancamentos.length > 0 ? lancamentos.map((launch) => (
                     <div key={launch.id} className="border rounded-lg p-4 flex flex-col md:flex-row justify-between items-center gap-4 dark:border-gray-700">
                         <div>
-                            <h3 className="font-bold text-lg text-gray-800 dark:text-gray-200">{launch.nome}</h3>
-                            <p className="text-sm font-mono text-gray-500 dark:text-gray-400">{launch.codigo}</p>
+                            <h3 className="font-bold text-lg font-mono text-gray-800 dark:text-gray-200">{launch.codigo}</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{launch.nome}</p>
                         </div>
                         <div className="flex flex-wrap justify-center gap-4">
                             <button
@@ -127,7 +137,6 @@ export default function FerramentasDeTestePage() {
                                 <RefreshCwIcon />
                                 {processing.launchId === launch.codigo && processing.type === 'reset_status' ? 'A reiniciar...' : 'Reiniciar Status'}
                             </button>
-                            {/* --- ALTERAÇÃO: Novo botão de Limpeza Profunda --- */}
                             <button
                                 onClick={() => handleAction(launch.codigo, 'delete_all_data')}
                                 disabled={processing.launchId === launch.codigo}
@@ -138,8 +147,13 @@ export default function FerramentasDeTestePage() {
                             </button>
                         </div>
                     </div>
-                ))}
+                )) : (
+                    <div className="text-center py-10">
+                        <p className="text-gray-500 dark:text-gray-400">Nenhum lançamento encontrado para o cliente selecionado.</p>
+                    </div>
+                )}
             </div>
         </div>
     );
 }
+

@@ -1,5 +1,4 @@
-// src/app/(main)/Dashboards/perfil-de-mql/page.jsx
-
+// /src/app/(main)/Dashboards/perfil-de-mql/page.jsx
 'use client';
 
 import { useState, useEffect, useCallback, useContext, useMemo } from "react";
@@ -70,11 +69,11 @@ export default function AnaliseMqlPage() {
                 toast.error("Erro ao buscar lançamentos.");
                 setLaunches([]);
             } else {
-                const filtered = (data || []).filter(l => l.status !== 'Planejado');
-                const sorted = [...filtered].sort((a, b) => {
+                // --- CORREÇÃO: Remove o filtro de status 'Planejado' ---
+                const sorted = [...(data || [])].sort((a, b) => {
                     if (a.status === 'Em andamento' && b.status !== 'Em andamento') return -1;
                     if (b.status === 'Em andamento' && a.status !== 'Em andamento') return 1;
-                    return a.nome.localeCompare(b.nome);
+                    return (a.codigo || a.nome).localeCompare(b.codigo || b.nome);
                 });
                 setLaunches(sorted);
                 if (sorted.length > 0) {
@@ -95,7 +94,7 @@ export default function AnaliseMqlPage() {
             <select value={selectedLaunch} onChange={e => setSelectedLaunch(e.target.value)} disabled={isLoadingLaunches || launches.length === 0} className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2">
                 {isLoadingLaunches ? <option>A carregar...</option> :
                  launches.length > 0 ?
-                 launches.map(l => <option key={l.id} value={l.id}>{l.nome} ({l.status})</option>) :
+                 launches.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
                  <option>Nenhum lançamento</option>}
             </select>
         );
@@ -145,7 +144,7 @@ export default function AnaliseMqlPage() {
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
             link.setAttribute("href", url);
-            const launchName = launches.find(l => l.id === selectedLaunch)?.nome || 'lancamento';
+            const launchName = launches.find(l => l.id === selectedLaunch)?.codigo || 'lancamento';
             link.setAttribute("download", `export_${launchName}_mql_${selectedMql}.csv`);
             document.body.appendChild(link);
             link.click();
@@ -230,3 +229,4 @@ export default function AnaliseMqlPage() {
         </div>
     );
 }
+

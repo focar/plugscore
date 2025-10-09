@@ -1,3 +1,4 @@
+// /src/app/(main)/Dashboards/criativos-por-score/page.jsx
 'use client';
 
 import React, { useState, useEffect, useCallback, Fragment, useMemo, useContext } from 'react';
@@ -64,7 +65,7 @@ export default function CriativosPorScorePage() {
             
             if (error) { console.error(error); return; }
 
-            const sorted = [...(launchesData || [])].sort((a, b) => a.nome.localeCompare(b.nome));
+            const sorted = [...(launchesData || [])].sort((a, b) => (a.codigo || a.nome).localeCompare(b.codigo || b.nome));
             setLaunches(sorted);
             if (sorted.length > 0) {
                 const inProgress = sorted.find(l => l.status === 'Em andamento');
@@ -108,7 +109,8 @@ export default function CriativosPorScorePage() {
             <select value={selectedLaunch} onChange={e => setSelectedLaunch(e.target.value)} disabled={isLoadingLaunches || launches.length === 0} className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2">
                  {isLoadingLaunches ? <option>Carregando...</option> : 
                   launches.length > 0 ? 
-                  launches.map(l => <option key={l.id} value={l.id}>{l.nome} ({l.status})</option>) :
+                  // --- CORREÇÃO: Mostra o código do lançamento, não o nome ---
+                  launches.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
                   <option>Nenhum lançamento</option>}
             </select>
         );

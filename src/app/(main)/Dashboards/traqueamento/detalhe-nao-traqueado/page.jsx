@@ -1,3 +1,4 @@
+// /src/app/(main)/Dashboards/traqueamento/detalhe-nao-traqueado/page.jsx
 'use client';
 
 import { useState, useEffect, useCallback, Suspense, useContext } from 'react';
@@ -58,7 +59,7 @@ function MovDiarioPageContent() {
 
   useEffect(() => {
     setHeaderContent({
-        title: 'Dashboard de Traqueamento',
+        title: 'Detalhe de Traqueamento',
         controls: (<button onClick={() => router.back()} className="flex-shrink-0 flex items-center gap-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold px-4 py-2 rounded-lg shadow-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"><FaChevronLeft size={14} /> Voltar</button>)
     });
     return () => setHeaderContent({ title: '', controls: null });
@@ -69,7 +70,6 @@ function MovDiarioPageContent() {
     setIsLoading(true);
     try {
       const clientIdToSend = userProfile.role === 'admin' ? null : userProfile.cliente_id;
-      // --- ALTERAÇÃO: Chama a função SQL de Mov. Diário NÃO TRAQUEADO ---
       const { data: result, error } = await supabase.rpc('get_untracked_traffic_daily_movement', { 
           p_launch_id: id,
           p_client_id: clientIdToSend

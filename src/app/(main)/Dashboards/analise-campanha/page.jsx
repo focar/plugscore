@@ -1,4 +1,4 @@
-
+// /src/app/(main)/Dashboards/analise-campanha/page.jsx
 'use client';
 
 import React, { useState, useEffect, useCallback, useContext, Fragment } from 'react';
@@ -42,7 +42,8 @@ export default function AnaliseCampanhaPage() {
         supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend })
             .then(({ data, error }) => {
                 if (error) throw error;
-                const sorted = [...(data || [])].sort((a, b) => a.nome.localeCompare(b.nome));
+                // --- CORREÇÃO: Ordena pelo código como padrão ---
+                const sorted = [...(data || [])].sort((a, b) => (a.codigo || a.nome).localeCompare(b.codigo || b.nome));
                 setLaunches(sorted);
                 if (sorted.length > 0) {
                     const inProgress = sorted.find(l => l.status === 'Em andamento');
@@ -59,7 +60,8 @@ export default function AnaliseCampanhaPage() {
              <select value={selectedLaunch} onChange={e => setSelectedLaunch(e.target.value)} disabled={isLoadingLaunches || launches.length === 0} className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2">
                  {isLoadingLaunches ? <option>Carregando...</option> : 
                   launches.length > 0 ? 
-                  launches.map(l => <option key={l.id} value={l.id}>{l.nome} ({l.status})</option>) :
+                  // --- CORREÇÃO: Mostra o código do lançamento, não o nome ---
+                  launches.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
                   <option>Nenhum lançamento</option>}
             </select>
         );
@@ -86,7 +88,6 @@ export default function AnaliseCampanhaPage() {
         fetchFilterOptions('get_utm_mediums', { p_launch_id: selectedLaunch, p_source: filters.source }).then(mediums => setOptions(p => ({...p, mediums, campaigns:[], contents:[], terms:[]})));
     }, [filters.source, selectedLaunch, fetchFilterOptions]);
     
-    // Efeitos similares para campaign, content, e term... (código completo abaixo para simplicidade)
     useEffect(() => {
         if (filters.medium === 'all') { setOptions(p => ({...p, campaigns:[]})); return; }
         setFilters(p => ({...p, campaign: 'all', content: 'all', term: 'all'}));
@@ -168,15 +169,15 @@ export default function AnaliseCampanhaPage() {
                         const isDisabled = index > 0 && filters[previousKey] === 'all';
                         return (
                              <div key={key}>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 capitalize">{`UTM ${key}`}</label>
-                                <select 
-                                    value={filters[key]} 
-                                    onChange={e => handleFilterChange(key, e.target.value)} 
-                                    className="w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded-md disabled:opacity-50" 
-                                    disabled={isDisabled}>
-                                    <option value="all">Todos</option>
-                                    {options[`${key}s`]?.map(o => <option key={o} value={o}>{o}</option>)}
-                                </select>
+                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 capitalize">{`UTM ${key}`}</label>
+                                 <select 
+                                     value={filters[key]} 
+                                     onChange={e => handleFilterChange(key, e.target.value)} 
+                                     className="w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded-md disabled:opacity-50" 
+                                     disabled={isDisabled}>
+                                     <option value="all">Todos</option>
+                                     {options[`${key}s`]?.map(o => <option key={o} value={o}>{o}</option>)}
+                                 </select>
                             </div>
                         )
                     })}

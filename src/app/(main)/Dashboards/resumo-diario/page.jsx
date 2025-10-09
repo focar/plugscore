@@ -107,7 +107,8 @@ export default function ResumoDiarioPage() {
                 {isLoadingLaunches ? (
                     <option>Carregando...</option>
                 ) : launches.length > 0 ? (
-                    launches.map((launch) => (<option key={launch.id} value={launch.id}> {launch.nome} ({launch.status}) </option>))
+                    // --- MUDANÇA UI: Exibindo o CÓDIGO do lançamento em vez do NOME ---
+                    launches.map((launch) => (<option key={launch.id} value={launch.id}> {launch.codigo} ({launch.status}) </option>))
                 ) : (
                     <option>Nenhum lançamento</option>
                 )}
@@ -170,7 +171,6 @@ export default function ResumoDiarioPage() {
                                     <div className="block lg:hidden space-y-4"> {dailyData.map(day => ( <div key={day.full_date} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700"> <div className="flex justify-between items-center mb-3"> <p className="font-bold text-lg text-gray-800 dark:text-gray-200">{new Date(day.full_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p> <div className="text-right"> <p className="text-sm font-semibold text-gray-800 dark:text-gray-300">{(day.inscricoes || 0).toLocaleString('pt-BR')} Leads</p> <p className="text-xs text-gray-500 dark:text-gray-400">{(day.checkins || 0).toLocaleString('pt-BR')} Check-ins</p> </div> </div> <div className="border-t border-gray-200 dark:border-gray-600 pt-3 grid grid-cols-3 gap-x-2 text-center"> <div> <p className="text-xs text-gray-500 dark:text-gray-400">Pago</p> <p className="font-semibold text-gray-700 dark:text-gray-300">{(day.trfPago || 0).toLocaleString('pt-BR')}</p> </div> <div> <p className="text-xs text-gray-500 dark:text-gray-400">Orgânico</p> <p className="font-semibold text-gray-700 dark:text-gray-300">{(day.trfOrganico || 0).toLocaleString('pt-BR')}</p> </div> <div> <p className="text-xs text-gray-500 dark:text-gray-400">Não Traq.</p> <p className="font-semibold text-gray-700 dark:text-gray-300">{(day.trfNaoTraqueado || 0).toLocaleString('pt-BR')}</p> </div> </div> </div> ))} </div>
                                 </div>
                                 
-                                {/* --- CORREÇÃO AQUI: Adicionando a key para forçar a recriação dos gráficos --- */}
                                 <div key={selectedLaunchId} className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
                                         <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">Evolução Diária de Inscritos</h2>

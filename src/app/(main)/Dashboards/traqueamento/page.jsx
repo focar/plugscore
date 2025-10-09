@@ -1,4 +1,4 @@
-// src/app/(main)/Dashboards/traqueamento/page.jsx
+// /src/app/(main)/Dashboards/traqueamento/page.jsx
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useContext } from "react";
@@ -79,7 +79,7 @@ export default function TraqueamentoPage() {
                 toast.error("Falha ao carregar lançamentos.");
                 setLaunches([]);
             } else if (data) {
-                const sorted = [...data].sort((a, b) => a.nome.localeCompare(b.nome));
+                const sorted = [...data].sort((a, b) => (a.codigo || a.nome).localeCompare(b.codigo || b.nome));
                 setLaunches(sorted);
                 if (sorted.length > 0) {
                     const inProgress = sorted.find(l => l.status === 'Em andamento');
@@ -131,7 +131,7 @@ export default function TraqueamentoPage() {
             >
                 {isLoadingLaunches ? <option>Carregando...</option> : 
                  launches.length > 0 ? 
-                 launches.map(l => <option key={l.id} value={l.id}>{l.nome} ({l.status})</option>) :
+                 launches.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
                  <option>Nenhum lançamento</option>}
             </select>
         );
@@ -154,8 +154,9 @@ export default function TraqueamentoPage() {
 
     const handleNavigate = (type) => {
         if (!selectedLaunchId) { toast.error("Por favor, selecione um lançamento primeiro."); return; }
-        const launchName = launches.find(l => l.id === selectedLaunchId)?.nome || '';
-        const queryParams = new URLSearchParams({ launchId: selectedLaunchId, launchName }).toString();
+        // --- CORREÇÃO: Passa o 'codigo' em vez do 'nome' ---
+        const launchCode = launches.find(l => l.id === selectedLaunchId)?.codigo || 'detalhe';
+        const queryParams = new URLSearchParams({ launchId: selectedLaunchId, launchName: launchCode }).toString();
 
         switch (type) {
             case 'paid':
@@ -165,7 +166,6 @@ export default function TraqueamentoPage() {
                 router.push(`/Dashboards/traqueamento/detalhe-organico?${queryParams}`);
                 break;
             case 'untracked':
-                // --- NAVEGAÇÃO ATIVADA ---
                 router.push(`/Dashboards/traqueamento/detalhe-nao-traqueado?${queryParams}`);
                 break;
         }
@@ -179,8 +179,8 @@ export default function TraqueamentoPage() {
                 <div className="flex justify-center items-center h-96"> <FaSpinner className="animate-spin text-blue-500 text-5xl" /> </div>
             ) : !kpis ? (
                  <div className="text-center py-16">
-                    <p className="text-gray-500 dark:text-gray-400">Não há dados para exibir para este lançamento.</p>
-                </div>
+                     <p className="text-gray-500 dark:text-gray-400">Não há dados para exibir para este lançamento.</p>
+                 </div>
             ) : (
                 <main className="space-y-8">
                     <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -223,3 +223,4 @@ export default function TraqueamentoPage() {
         </div>
     );
 }
+

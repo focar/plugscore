@@ -1,10 +1,11 @@
 // src/app/(main)/Operacional/lancamentos/page.jsx
 'use client';
 
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AppContext } from '@/context/AppContext';
+import toast, { Toaster } from 'react-hot-toast';
 
 // --- ÍCONES ---
 const PlusCircleIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /><path d="M12 8v8" /></svg>);
@@ -15,9 +16,12 @@ const CalculatorIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width
 const XIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>);
 const ImportIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>);
 
-// --- Componentes ---
-const Input = React.forwardRef((props, ref) => (<input {...props} ref={ref} className="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />));
-const Select = React.forwardRef((props, ref) => (<select {...props} ref={ref} className="block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />));
+// --- Componentes Reutilizáveis com Estilos Corrigidos ---
+const Input = React.forwardRef((props, ref) => (<input {...props} ref={ref} className="block w-full px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-700/50" />));
+Input.displayName = 'Input';
+
+const Select = React.forwardRef((props, ref) => (<select {...props} ref={ref} className="block w-full px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />));
+Select.displayName = 'Select';
 
 function Modal({ isOpen, onClose, title, children, size = 'md' }) {
     if (!isOpen) return null;
@@ -27,7 +31,7 @@ function Modal({ isOpen, onClose, title, children, size = 'md' }) {
             <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full m-4 ${sizeClasses[size]}`}>
                 <div className="flex justify-between items-center border-b p-4 dark:border-gray-600">
                     <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100">{title}</h3>
-                    <button onClick={onClose} className="p-1 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 dark:hover:text-gray-200 transition-colors">
+                    <button onClick={onClose} className="p-1 rounded-full text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-gray-100 transition-colors">
                         <XIcon width={20} height={20} />
                     </button>
                 </div>
@@ -38,13 +42,13 @@ function Modal({ isOpen, onClose, title, children, size = 'md' }) {
 }
 
 const StatusBadge = ({ status }) => {
-  const statusStyles = {
+ const statusStyles = {
     'Planejado': 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
     'Em andamento': 'bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     'Concluido': 'bg-green-200 text-green-800 dark:bg-green-900 dark:text-green-200',
     'Cancelado': 'bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-200',
-  };
-  return <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusStyles[status] || 'bg-gray-200 text-gray-800'}`}>{status}</span>
+ };
+ return <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusStyles[status] || 'bg-gray-200 text-gray-800'}`}>{status}</span>
 }
 
 const PerguntaItem = ({ pergunta, onAction, actionIcon }) => (
@@ -53,9 +57,9 @@ const PerguntaItem = ({ pergunta, onAction, actionIcon }) => (
              <span className={`px-2 py-0.5 text-xs rounded-full font-semibold ${pergunta.classe === 'score' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}`}>
                 {pergunta.classe}
             </span>
-            <span className="text-sm">{pergunta.texto}</span>
+            <span className="text-sm text-gray-800 dark:text-gray-200">{pergunta.texto}</span>
         </div>
-        <button onClick={() => onAction(pergunta)} className="text-blue-500 hover:text-blue-700 text-2xl" title="Adicionar ao Lançamento">
+        <button onClick={() => onAction(pergunta)} className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-2xl" title={actionIcon === '→' ? "Adicionar ao Lançamento" : "Remover do Lançamento"}>
             {actionIcon}
         </button>
     </div>
@@ -84,6 +88,28 @@ export default function LancamentosPage() {
         fetchLancamentos();
     }, []);
 
+    const handleAddNew = useCallback(() => {
+        if (!selectedClientId || selectedClientId === 'all') {
+            toast.error("Por favor, selecione um cliente no filtro do topo para criar um novo lançamento.");
+            return;
+        }
+
+        const client = allClients.find(c => c.id === selectedClientId);
+        if (!client) {
+            toast.error("Cliente selecionado não encontrado. Por favor, atualize a página.");
+            return;
+        }
+        
+        setEditingLancamento({
+            nome: '',
+            codigo: '',
+            cliente_id: client.id,
+            clientes: { id: client.id, nome: client.nome, codigo: client.codigo },
+            status: 'Planejado'
+        });
+        setIsEditModalOpen(true);
+    }, [selectedClientId, allClients]);
+
     useEffect(() => {
         setHeaderContent({
             title: 'Gestão de Lançamentos',
@@ -93,14 +119,14 @@ export default function LancamentosPage() {
                 </button>
             )
         });
-        return () => setHeaderContent(null);
-    }, [allClients]); // Adicionado allClients como dependência
+        return () => setHeaderContent({ title: '', controls: null });
+    }, [setHeaderContent, handleAddNew]);
 
     async function fetchLancamentos() {
         setLoading(true);
         setError(null);
         try {
-            const { data, error } = await supabase.from('lancamentos').select('*, clientes(id, nome)').order('nome', { ascending: true });
+            const { data, error } = await supabase.from('lancamentos').select('*, clientes(id, nome, codigo)').order('nome', { ascending: true });
             if (error) throw error;
             setAllLancamentos(data || []);
         } catch (err) {
@@ -117,29 +143,20 @@ export default function LancamentosPage() {
         return allLancamentos.filter(l => l.clientes?.id === selectedClientId);
     }, [selectedClientId, allLancamentos]);
 
-    const handleAddNew = () => {
-        if (allClients.length === 0) { 
-            alert("É necessário ter pelo menos um cliente registado."); 
-            return; 
-        }
-        setEditingLancamento({ nome: '', codigo: '', cliente_id: allClients[0].id, status: 'Planejado' });
-        setIsEditModalOpen(true);
-    };
-
     const handleEdit = (lancamento) => {
-        const lancamentoFlat = { id: lancamento.id, nome: lancamento.nome, codigo: lancamento.codigo, cliente_id: lancamento.clientes?.id || null, status: lancamento.status || 'Planejado' };
-        setEditingLancamento(lancamentoFlat);
+        setEditingLancamento(lancamento);
         setIsEditModalOpen(true);
     };
 
     const handleDelete = async (lancamentoId) => {
-       if (!window.confirm("Atenção! Apagar um lançamento é uma ação irreversível.")) return;
+       if (!window.confirm("Atenção! Apagar um lançamento é uma ação irreversível e removerá todos os dados associados.")) return;
         try {
             await supabase.from('lancamento_perguntas').delete().eq('lancamento_id', lancamentoId);
             await supabase.from('lancamentos').delete().eq('id', lancamentoId).throwOnError();
+            toast.success('Lançamento apagado com sucesso.');
             fetchLancamentos();
         } catch (err) {
-            setError("Não foi possível apagar o lançamento: " + err.message);
+            toast.error("Não foi possível apagar o lançamento: " + err.message);
         }
     };
 
@@ -156,18 +173,20 @@ export default function LancamentosPage() {
             status: editingLancamento.status,
         };
 
+        const toastId = toast.loading('A guardar...');
         try {
             let { error } = editingLancamento.id 
                 ? await supabase.from('lancamentos').update(dataToSave).eq('id', editingLancamento.id) 
                 : await supabase.from('lancamentos').insert(dataToSave);
             
             if (error) throw error;
-
+            
+            toast.success('Lançamento guardado!', { id: toastId });
             setIsEditModalOpen(false);
             setEditingLancamento(null);
             fetchLancamentos();
         } catch (err) {
-            setError("Não foi possível guardar o lançamento: " + err.message);
+            toast.error("Não foi possível guardar: " + err.message, { id: toastId });
         } finally {
             setIsSaving(false);
         }
@@ -199,6 +218,7 @@ export default function LancamentosPage() {
 
         } catch (err) {
             setError(err.message); 
+            toast.error(err.message);
             setAvailablePerguntas([]);
             setLinkedPerguntas([]);
             setImportableLaunches([]);
@@ -208,13 +228,14 @@ export default function LancamentosPage() {
     };
 
     const handleImport = async () => {
-        if (!selectedImportId) { alert("Selecione um lançamento para importar."); return; }
+        if (!selectedImportId) { toast.error("Selecione um lançamento para importar."); return; }
+        const toastId = toast.loading('A importar perguntas...');
         try {
             const { data: sourceLinks, error: sourceError } = await supabase.from('lancamento_perguntas').select('pergunta_id').eq('lancamento_id', selectedImportId);
             if (sourceError) throw sourceError;
             const sourceQuestionIds = sourceLinks.map(l => l.pergunta_id);
             
-            if (sourceQuestionIds.length === 0) { alert("O lançamento selecionado não tem perguntas."); return; }
+            if (sourceQuestionIds.length === 0) { toast.error("O lançamento selecionado não tem perguntas."); return; }
 
             const { data: questionsToImport, error: questionsError } = await supabase.from('perguntas').select('id, texto, classe').in('id', sourceQuestionIds);
             if (questionsError) throw questionsError;
@@ -222,26 +243,28 @@ export default function LancamentosPage() {
             const currentLinkedIds = new Set(linkedPerguntas.map(p => p.id));
             const newQuestions = questionsToImport.filter(p => !currentLinkedIds.has(p.id));
             
-            setLinkedPerguntas([...linkedPerguntas, ...newQuestions]);
+            setLinkedPerguntas([...linkedPerguntas, ...newQuestions].sort((a,b) => a.texto.localeCompare(b.texto)));
             setAvailablePerguntas(availablePerguntas.filter(p => !newQuestions.some(nq => nq.id === p.id)));
-
+            
+            toast.success(`${newQuestions.length} perguntas importadas!`, { id: toastId });
         } catch (err) {
-            setError("Erro ao importar: " + err.message);
+            toast.error("Erro ao importar: " + err.message, { id: toastId });
         }
     };
 
     const linkPergunta = (pergunta) => {
         setAvailablePerguntas(availablePerguntas.filter(p => p.id !== pergunta.id));
-        setLinkedPerguntas([...linkedPerguntas, pergunta]);
+        setLinkedPerguntas([...linkedPerguntas, pergunta].sort((a,b) => a.texto.localeCompare(b.texto)));
     };
 
     const unlinkPergunta = (pergunta) => {
         setLinkedPerguntas(linkedPerguntas.filter(p => p.id !== pergunta.id));
-        setAvailablePerguntas([...availablePerguntas, pergunta]);
+        setAvailablePerguntas([...availablePerguntas, pergunta].sort((a,b) => a.texto.localeCompare(b.texto)));
     };
     
     const handleSaveChanges = async () => {
         setIsSaving(true);
+        const toastId = toast.loading('A guardar alterações...');
         try {
             await supabase.from('lancamento_perguntas').delete().eq('lancamento_id', managingLancamento.id).throwOnError();
 
@@ -250,10 +273,11 @@ export default function LancamentosPage() {
                 await supabase.from('lancamento_perguntas').insert(newLinks).throwOnError();
             }
             
+            toast.success('Perguntas guardadas!', { id: toastId });
             setIsQuestionsModalOpen(false);
             setManagingLancamento(null);
         } catch (err) {
-            setError("Erro ao guardar perguntas: " + err.message);
+            toast.error("Erro ao guardar perguntas: " + err.message, { id: toastId });
         } finally {
             setIsSaving(false);
         }
@@ -265,17 +289,19 @@ export default function LancamentosPage() {
 
     return (
         <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
-            {error && !isQuestionsModalOpen && <div className="mb-4 p-4 bg-red-100 text-red-700 dark:text-gray-200 rounded-lg">{error}</div>}
+            <Toaster position="top-center" />
+            {error && !isQuestionsModalOpen && <div className="mb-4 p-4 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200 rounded-lg">{error}</div>}
             <div className="overflow-x-auto">
-                {loading ? <p className="text-center py-8 text-gray-500">A carregar...</p> :
-                   filteredLancamentos.length === 0 ? <p className="text-center py-8 text-gray-500">Nenhum lançamento encontrado.</p> :
+                {loading ? <p className="text-center py-8 text-gray-500 dark:text-gray-300">A carregar...</p> :
+                 filteredLancamentos.length === 0 ? <p className="text-center py-8 text-gray-500 dark:text-gray-400">Nenhum lançamento encontrado.</p> :
                 (
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        {/* --- MUDANÇA UI: Ordem das colunas e nome do cabeçalho alterados --- */}
                         <thead className="bg-gray-50 dark:bg-gray-900">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nome do Lançamento</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Código</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cliente</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Cod. do Lanç.</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Nome do Lançamento</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Ações</th>
                             </tr>
@@ -283,9 +309,10 @@ export default function LancamentosPage() {
                         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                             {filteredLancamentos.map((lancamento) => (
                                 <tr key={lancamento.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{lancamento.nome}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500 dark:text-gray-400">{lancamento.codigo}</td>
+                                    {/* --- MUDANÇA UI: Ordem das células da tabela alterada --- */}
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{lancamento.clientes?.nome || 'N/A'}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500 dark:text-gray-400">{lancamento.codigo}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{lancamento.nome}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm"><StatusBadge status={lancamento.status} /></td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-end items-center gap-4 flex-wrap">
                                         <button onClick={() => handleDefinePontos(lancamento)} className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-200 flex items-center gap-1"><CalculatorIcon/> Definir Pontos</button>
@@ -303,15 +330,23 @@ export default function LancamentosPage() {
             <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title={editingLancamento?.id ? 'Editar Lançamento' : 'Novo Lançamento'}>
                 <form onSubmit={handleSave} className="space-y-6">
                     <div>
-                        <label htmlFor="nome" className="block text-sm font-medium">Nome do Lançamento</label>
+                        <label htmlFor="cliente_nome" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Cliente</label>
+                        <Input id="cliente_nome" type="text" disabled value={editingLancamento?.clientes?.nome || ''} />
+                    </div>
+                    <div>
+                        <label htmlFor="cliente_codigo" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Código do Cliente</label>
+                        <Input id="cliente_codigo" type="text" disabled value={editingLancamento?.clientes?.codigo || ''} />
+                    </div>
+                    <div>
+                        <label htmlFor="nome" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nome do Lançamento</label>
                         <Input id="nome" type="text" required value={editingLancamento?.nome || ''} onChange={(e) => setEditingLancamento({ ...editingLancamento, nome: e.target.value })} />
                     </div>
                     <div>
-                        <label htmlFor="codigo" className="block text-sm font-medium">Código</label>
+                        <label htmlFor="codigo" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Código do Lançamento</label>
                         <Input id="codigo" type="text" required value={editingLancamento?.codigo || ''} onChange={(e) => setEditingLancamento({ ...editingLancamento, codigo: e.target.value })} />
                     </div>
                     <div>
-                        <label htmlFor="status" className="block text-sm font-medium">Status</label>
+                        <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
                         <Select id="status" required value={editingLancamento?.status || 'Planejado'} onChange={(e) => setEditingLancamento({ ...editingLancamento, status: e.target.value })}>
                             <option>Planejado</option>
                             <option>Em andamento</option>
@@ -319,15 +354,8 @@ export default function LancamentosPage() {
                             <option>Cancelado</option>
                         </Select>
                     </div>
-                    <div>
-                        <label htmlFor="cliente" className="block text-sm font-medium">Cliente</label>
-                        <Select id="cliente" required value={editingLancamento?.cliente_id || ''} onChange={(e) => setEditingLancamento({ ...editingLancamento, cliente_id: e.target.value })}>
-                            <option value="" disabled>Selecione um cliente</option>
-                            {allClients.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                        </Select>
-                    </div>
                     <div className="pt-4 flex justify-end gap-3 border-t dark:border-gray-700">
-                        <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Cancelar</button>
+                        <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Cancelar</button>
                         <button type="submit" disabled={isSaving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50">{isSaving ? 'A guardar...' : 'Guardar Lançamento'}</button>
                     </div>
                 </form>
@@ -336,28 +364,28 @@ export default function LancamentosPage() {
             <Modal isOpen={isQuestionsModalOpen} onClose={() => setIsQuestionsModalOpen(false)} title={`Gerir Perguntas para: ${managingLancamento?.nome}`} size="3xl">
                <div className="flex flex-col h-[70vh]">
                     {error && <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-lg shrink-0">{error}</div>}
-                    {loadingPerguntas ? <p className="text-center py-8 text-gray-500 flex-grow">A carregar...</p> : !error && <>
+                    {loadingPerguntas ? <p className="text-center py-8 text-gray-500 dark:text-gray-300 flex-grow">A carregar...</p> : !error && <>
                         {importableLaunches.length > 0 && (
                             <div className="mb-4 p-3 border rounded-lg dark:border-gray-600 flex items-center gap-4 shrink-0">
-                                <label htmlFor="import-select" className="text-sm font-medium shrink-0">Importar de outro lançamento:</label>
+                                <label htmlFor="import-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0">Importar de outro lançamento:</label>
                                 <Select id="import-select" value={selectedImportId} onChange={e => setSelectedImportId(e.target.value)} className="flex-grow">
                                     <option value="" disabled>Selecione...</option>
                                     {importableLaunches.map(l => (<option key={l.id} value={l.id}>{l.nome}</option>))}
                                 </Select>
-                                <button onClick={handleImport} className="flex items-center gap-2 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-sm font-semibold rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">
+                                <button onClick={handleImport} className="flex items-center gap-2 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm font-semibold rounded-md hover:bg-gray-300 dark:hover:bg-gray-600">
                                     <ImportIcon /> Importar
                                 </button>
                             </div>
                         )}
                         <div className="grid grid-cols-2 gap-6 flex-grow min-h-0">
                             <div className="flex flex-col border rounded-lg p-4 dark:border-gray-600 min-h-0">
-                                <h4 className="font-semibold mb-2 shrink-0">Perguntas Disponíveis</h4>
+                                <h4 className="font-semibold mb-2 shrink-0 text-gray-900 dark:text-gray-100">Perguntas Disponíveis</h4>
                                 <div className="overflow-y-auto flex-grow">
                                     {availablePerguntas.map(p => <PerguntaItem key={p.id} pergunta={p} onAction={linkPergunta} actionIcon="→" />)}
                                 </div>
                             </div>
                             <div className="flex flex-col border rounded-lg p-4 dark:border-gray-600 min-h-0">
-                                <h4 className="font-semibold mb-2 shrink-0">Perguntas no Lançamento</h4>
+                                <h4 className="font-semibold mb-2 shrink-0 text-gray-900 dark:text-gray-100">Perguntas no Lançamento</h4>
                                 <div className="overflow-y-auto flex-grow">
                                     {linkedPerguntas.map(p => <PerguntaItem key={p.id} pergunta={p} onAction={unlinkPergunta} actionIcon="←" />)}
                                 </div>
@@ -365,7 +393,7 @@ export default function LancamentosPage() {
                         </div>
                     </>}
                     <div className="mt-6 flex justify-end gap-3 border-t dark:border-gray-600 pt-4 shrink-0">
-                        <button type="button" onClick={() => setIsQuestionsModalOpen(false)} className="px-4 py-2 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Cancelar</button>
+                        <button type="button" onClick={() => setIsQuestionsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700">Cancelar</button>
                         <button type="button" onClick={handleSaveChanges} disabled={isSaving} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50">{isSaving ? 'A guardar...' : 'Guardar Alterações'}</button>
                     </div>
                 </div>
@@ -373,3 +401,4 @@ export default function LancamentosPage() {
         </div>
     );
 }
+
