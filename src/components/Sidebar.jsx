@@ -26,12 +26,14 @@ export default function Sidebar({ userProfile }) {
              { name: 'Lead Scoring', href: '/Dashboards/lead-scoring' },
              { name: 'Perfil de Score', href: '/Dashboards/perfil-de-score' },
              { name: 'Perfil de MQL', href: '/Dashboards/perfil-de-mql' },
+             { name: 'Compradores', href: '/Dashboards/origem-compradores' },
          ],
          OPERACIONAL: [
              { name: 'Lançamentos', href: '/Operacional/lancamentos' },
              { name: 'Regras de Pontuação', href: '/Operacional/regras-de-pontuacao' },
              { name: 'Banco de Perguntas', href: '/Operacional/banco-de-perguntas' },
              { name: 'Clientes', href: '/Operacional/clientes' },
+             { name: 'Importar Compradores', href: '/Operacional/importar-compradores' },
              { name: 'Gerador de Links', href: '/Operacional/gerador-links' },
          ],
          FERRAMENTAS: [

@@ -25,19 +25,51 @@ const customQuestionOrder = [
 const Spinner = () => ( <div className="flex justify-center items-center h-40"><FaSpinner className="animate-spin text-blue-600 text-3xl mx-auto" /></div> );
 const KpiCard = ({ title, value, icon: Icon }) => ( <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm text-center flex flex-col justify-center h-full"><Icon className="mx-auto text-blue-500 mb-2" size={28} /><p className="text-3xl font-bold text-slate-800 dark:text-gray-100">{value}</p><h3 className="text-sm font-medium text-slate-500 dark:text-gray-400 mt-1">{title}</h3></div> );
 
+// --- COMPONENTE ATUALIZADO ---
 const ScoreProfileCard = ({ questionData }) => {
     const totalResponses = useMemo(() => questionData.answers?.reduce((sum, answer) => sum + answer.lead_count, 0) || 0, [questionData.answers]);
+    
     if (!questionData.answers || totalResponses === 0) return null;
+
+    const getDisplayText = (answerText) => {
+        try {
+            const parsed = JSON.parse(answerText);
+            if (parsed && typeof parsed === 'object' && parsed.hasOwnProperty('resposta')) {
+                return parsed.resposta;
+            }
+        } catch (e) {
+            // Não é um JSON, retorna o texto original
+            return answerText;
+        }
+        return answerText; // Fallback para o texto original se o JSON não tiver a propriedade 'resposta'
+    };
+
     return (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm flex flex-col h-full">
             <h3 className="font-bold text-slate-800 dark:text-gray-100 mb-4">{questionData.question_text}</h3>
             <ul className="space-y-3 flex-grow">{questionData.answers.sort((a, b) => b.lead_count - a.lead_count).map((answer, index) => {
                 const percentage = totalResponses > 0 ? (answer.lead_count / totalResponses) * 100 : 0;
-                return (<li key={index}><div className="flex justify-between items-center mb-1 text-sm"><span className="text-slate-600 dark:text-gray-300">{answer.answer_text}</span><span className="font-medium text-slate-700 dark:text-gray-200">{answer.lead_count.toLocaleString('pt-BR')}<span className="text-slate-400 ml-2">({percentage.toFixed(1)}%)</span></span></div><div className="w-full bg-slate-200 dark:bg-gray-700 rounded-full h-2.5"><div className="bg-blue-500 h-2.5 rounded-full" style={{ width: `${percentage}%` }}></div></div></li>);
+                const displayText = getDisplayText(answer.answer_text);
+
+                return (
+                    <li key={index}>
+                        <div className="flex justify-between items-center mb-1 text-sm">
+                            <span className="text-slate-600 dark:text-gray-300">{displayText}</span>
+                            <span className="font-medium text-slate-700 dark:text-gray-200">
+                                {answer.lead_count.toLocaleString('pt-BR')}
+                                <span className="text-slate-400 ml-2">({percentage.toFixed(1)}%)</span>
+                            </span>
+                        </div>
+                        <div className="w-full bg-slate-200 dark:bg-gray-700 rounded-full h-2.5">
+                            <div className="bg-blue-500 h-2.5 rounded-full" style={{ width: `${percentage}%` }}></div>
+                        </div>
+                    </li>
+                );
             })}</ul>
         </div>
     );
 };
+
 
 export default function PerfilDeScorePage() {
     const supabase = createClientComponentClient();
@@ -87,9 +119,9 @@ export default function PerfilDeScorePage() {
         const launchSelector = (
             <select value={selectedLaunch} onChange={e => setSelectedLaunch(e.target.value)} disabled={isLoadingLaunches || launches.length === 0} className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2">
                 {isLoadingLaunches ? <option>A carregar...</option> :
-                 launches.length > 0 ?
-                 launches.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
-                 <option>Nenhum lançamento</option>}
+                   launches.length > 0 ?
+                   launches.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
+                   <option>Nenhum lançamento</option>}
             </select>
         );
         setHeaderContent({ title: 'Perfil de Score por Respostas', controls: launchSelector });
