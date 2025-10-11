@@ -21,6 +21,8 @@ export default function Sidebar({ userProfile }) {
              { name: 'Traqueamento', href: '/Dashboards/traqueamento' },
              { name: 'Criativos por Score', href: '/Dashboards/criativos-por-score' },
              { name: 'Análise de Campanha', href: '/Dashboards/analise-campanha' },
+             { name: 'Campanhas e Criativos', href: '/Dashboards/campanhas-criativos' },
+             
              { name: 'Resumo Diario', href: '/Dashboards/resumo-diario' },
              { name: 'Evolução de Canal', href: '/Dashboards/evolucao-de-canal' },
              { name: 'Lead Scoring', href: '/Dashboards/lead-scoring' },
@@ -35,6 +37,7 @@ export default function Sidebar({ userProfile }) {
              { name: 'Clientes', href: '/Operacional/clientes' },
              { name: 'Importar Compradores', href: '/Operacional/importar-compradores' },
              { name: 'Gerador de Links', href: '/Operacional/gerador-links' },
+             
          ],
          FERRAMENTAS: [
              { name: 'Acerto respostas', href: '/Ferramentas/ferramentas-de-teste' },
