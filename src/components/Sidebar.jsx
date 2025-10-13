@@ -19,6 +19,7 @@ export default function Sidebar({ userProfile }) {
     const allMenuItems = {
          DASHBOARDS: [
              { name: 'Traqueamento', href: '/Dashboards/traqueamento' },
+             { name: 'Analise de Criativos', href: '/Dashboards/recomendacao-criativos' },
              { name: 'Criativos por Score', href: '/Dashboards/criativos-por-score' },
              { name: 'Análise de Campanha', href: '/Dashboards/analise-campanha' },
              { name: 'Campanhas e Criativos', href: '/Dashboards/campanhas-criativos' },
