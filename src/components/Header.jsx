@@ -24,7 +24,10 @@ export default function Header({ userProfile }) {
     useEffect(() => {
         const fetchClients = async () => {
             if (userProfile?.role === 'admin') {
-                const { data: clientsData, error } = await supabase.from('clientes').select('id, nome').order('nome');
+                // --- CORREÇÃO APLICADA AQUI ---
+                // Agora estamos a selecionar 'id, nome, codigo' para ter todos os dados necessários.
+                const { data: clientsData, error } = await supabase.from('clientes').select('id, nome, codigo').order('nome');
+                
                 if (error) {
                     console.error('Erro ao buscar clientes:', error);
                     setAllClients([]);

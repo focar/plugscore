@@ -1,4 +1,3 @@
-// /src/app/(main)/Dashboards/perfil-de-mql/page.jsx
 'use client';
 
 import { useState, useEffect, useCallback, useContext, useMemo } from "react";
@@ -8,19 +7,18 @@ import { FaSpinner, FaFileCsv } from "react-icons/fa";
 import { Users, UserCheck, Percent } from "lucide-react";
 import toast, { Toaster } from 'react-hot-toast';
 
-// --- Constantes e Configurações ---
+// --- Constantes e Configurações (COM A NOVA ESCALA) ---
 const mqlCategories = [
-    { key: 'a', letter: 'A', name: '(>= 20)', color: 'text-emerald-500', bgColor: 'bg-emerald-50 dark:bg-emerald-500/10', borderColor: 'border-emerald-500' },
-    { key: 'b', letter: 'B', name: '(14-19)', color: 'text-sky-500', bgColor: 'bg-sky-50 dark:bg-sky-500/10', borderColor: 'border-sky-500' },
-    { key: 'c', letter: 'C', name: '(6-13)', color: 'text-amber-500', bgColor: 'bg-amber-50 dark:bg-amber-500/10', borderColor: 'border-amber-500' },
-    { key: 'd', letter: 'D', name: '(1-5)', color: 'text-red-500', bgColor: 'bg-red-50 dark:bg-red-500/10', borderColor: 'border-red-500' },
+    { key: 'a', letter: 'A', name: '(>= 28)', color: 'text-emerald-500', bgColor: 'bg-emerald-50 dark:bg-emerald-500/10', borderColor: 'border-emerald-500' },
+    { key: 'b', letter: 'B', name: '(19-27)', color: 'text-sky-500', bgColor: 'bg-sky-50 dark:bg-sky-500/10', borderColor: 'border-sky-500' },
+    { key: 'c', letter: 'C', name: '(11-18)', color: 'text-amber-500', bgColor: 'bg-amber-50 dark:bg-amber-500/10', borderColor: 'border-amber-500' },
+    { key: 'd', letter: 'D', name: '(1-10)', color: 'text-red-500', bgColor: 'bg-red-50 dark:bg-red-500/10', borderColor: 'border-red-500' },
 ];
 
 // --- Componentes ---
 const Spinner = () => ( <div className="flex justify-center items-center h-40"><FaSpinner className="animate-spin text-blue-600 text-3xl mx-auto" /></div> );
 const KpiCard = ({ title, value, icon: Icon }) => ( <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm text-center flex flex-col justify-center h-full"><Icon className="mx-auto text-blue-500 mb-1.5" size={24} /><p className="text-2xl font-bold text-slate-800 dark:text-gray-100">{value}</p><h3 className="text-xs font-medium text-slate-500 dark:text-gray-400 mt-0.5">{title}</h3></div> );
 
-// --- COMPONENTE ATUALIZADO ---
 const AnswerBreakdownCard = ({ questionData }) => {
     const totalResponses = useMemo(() => { return questionData.answers?.reduce((sum, answer) => sum + answer.lead_count, 0) || 0; }, [questionData.answers]);
     
@@ -87,7 +85,6 @@ export default function AnaliseMqlPage() {
                 toast.error("Erro ao buscar lançamentos.");
                 setLaunches([]);
             } else {
-                // --- CORREÇÃO: Remove o filtro de status 'Planejado' ---
                 const sorted = [...(data || [])].sort((a, b) => {
                     if (a.status === 'Em andamento' && b.status !== 'Em andamento') return -1;
                     if (b.status === 'Em andamento' && a.status !== 'Em andamento') return 1;
@@ -111,9 +108,9 @@ export default function AnaliseMqlPage() {
         const launchSelector = (
             <select value={selectedLaunch} onChange={e => setSelectedLaunch(e.target.value)} disabled={isLoadingLaunches || launches.length === 0} className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2">
                 {isLoadingLaunches ? <option>A carregar...</option> :
-                   launches.length > 0 ?
-                   launches.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
-                   <option>Nenhum lançamento</option>}
+                    launches.length > 0 ?
+                    launches.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
+                    <option>Nenhum lançamento</option>}
             </select>
         );
         setHeaderContent({ title: 'Análise de MQL por Respostas', controls: launchSelector });
@@ -204,7 +201,7 @@ export default function AnaliseMqlPage() {
                 <div className="bg-gray-100 dark:bg-gray-800/50 p-4 rounded-lg shadow-sm">
                     <div className="flex flex-col md:flex-row gap-4">
                         <div className="flex-grow grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                           {mqlCategories.map(cat => {
+                          {mqlCategories.map(cat => {
                                 const totalLeadsCategoria = mqlKpiData?.[cat.key] ?? 0;
                                 const percentage = generalKpis.total_checkins > 0 ? (totalLeadsCategoria / generalKpis.total_checkins) * 100 : 0;
                                 return (
@@ -217,7 +214,7 @@ export default function AnaliseMqlPage() {
                                         </div>
                                     </button>
                                 );
-                           })}
+                            })}
                         </div>
                         <div className="flex-shrink-0">
                             <button onClick={handleExport} disabled={isExporting || isLoadingData} className="w-full h-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 text-base">
@@ -247,3 +244,4 @@ export default function AnaliseMqlPage() {
         </div>
     );
 }
+
