@@ -2,34 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+/* === Regras Essenciais para Layout de Tela Cheia === */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
 
-/* ========================================================================== */
-/* --- Estilização customizada da Barra de Rolagem (Scrollbar) --- */
-/* ========================================================================== */
+/* === Estilização Customizada da Barra de Rolagem === */
 
-/* Para navegadores baseados em WebKit (Chrome, Safari, Edge) */
+/* Para Chrome, Safari, Edge */
 ::-webkit-scrollbar {
-  width: 8px;  /* Largura do scrollbar */
-  height: 8px; /* Altura (para scroll horizontal) */
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;  /* Fundo da trilha transparente */
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(107, 114, 128, 0.5); /* Cor cinza com 50% de opacidade (Tailwind gray-500) */
-  border-radius: 10px; /* Bordas arredondadas */
-  border: 2px solid transparent; /* Borda transparente para dar um efeito de preenchimento */
+  background-color: rgba(107, 114, 128, 0.5);
+  border-radius: 10px;
+  border: 2px solid transparent;
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(107, 114, 128, 0.7); /* Aumenta a opacidade ao passar o mouse */
+  background-color: rgba(107, 114, 128, 0.7);
 }
 
 /* Para Firefox */
 * {
-  scrollbar-width: thin; /* Deixa o scrollbar mais fino */
-  scrollbar-color: rgba(107, 114, 128, 0.5) transparent; /* Cor da barra e cor da trilha */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(107, 114, 128, 0.5) transparent;
 }
+
