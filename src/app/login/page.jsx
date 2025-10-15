@@ -35,7 +35,8 @@ export default function LoginPage() {
         {/* --- ALTERAÇÃO AQUI: Logo e Nome --- */}
         <div className="flex flex-col items-center text-center">
           <Image
-            src="https://qmnhgbdkgnbvfdxhbtst.supabase.co/storage/v1/object/public/img/logo_02.png"
+            // src="https://qmnhgbdkgnbvfdxhbtst.supabase.co/storage/v1/object/public/img/logo_02.png"
+            src="https://qmnhgbdkgnbvfdxhbtst.supabase.co/storage/v1/object/public/img/logo_az1.png"
             alt="Logo"
             width={80}
             height={80}

@@ -87,7 +87,7 @@ export default function Sidebar({ userProfile }) {
                 
                 {/* CORREÇÃO: O logo agora é um link para a página inicial */}
                 <Link href="/" onClick={handleLinkClick} className="flex items-center gap-3 mb-8 px-2 transition-opacity hover:opacity-80">
-                    <Image src="https://qmnhgbdkgnbvfdxhbtst.supabase.co/storage/v1/object/public/img/logo_mini01.png" alt="Logótipo do PlugScore" width={48} height={48} className="h-12 w-12"/>
+                    <Image src="https://qmnhgbdkgnbvfdxhbtst.supabase.co/storage/v1/object/public/img/logo_mini_az1.png" alt="Logótipo do PlugScore" width={48} height={48} className="h-12 w-12"/>
                     <div>
                         <h1 className="text-white text-xl font-bold">PlugScore</h1>
                         <div className="text-xs text-gray-400 flex items-center gap-2">
