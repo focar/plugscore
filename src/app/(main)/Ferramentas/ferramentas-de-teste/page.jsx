@@ -16,18 +16,23 @@ export default function FerramentasDeTestePage() {
     const supabase = createClientComponentClient();
     const [lancamentos, setLancamentos] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [processingStatus, setProcessingStatus] = useState({}); // { [launchId]: { message: '...', type: 'success' | 'error' } }
-    const [isProcessing, setIsProcessing] = useState(false); // Bloqueio global
+    const [processingStatus, setProcessingStatus] = useState({}); // { [launchCode]: { message: '...', type: 'success' | 'error' | 'info' } }
+    const [isProcessing, setIsProcessing] = useState(false); // Bloqueio global para qualquer operação
 
     const fetchLancamentos = useCallback(async () => {
         setLoading(true);
-        let query = supabase.from('lancamentos').select('*, clientes(id, nome)');
+        let query = supabase.from('lancamentos').select('id, nome, codigo');
+
         if (selectedClientId && selectedClientId !== 'all') {
             query = query.eq('cliente_id', selectedClientId);
         }
-        const { data, error } = await query.order('nome', { ascending: true });
+        
+        query = query.order('codigo', { ascending: true });
+
+        const { data, error } = await query;
+        
         if (error) {
-            toast.error("Erro ao carregar lançamentos.");
+            toast.error('Erro ao carregar lançamentos: ' + error.message);
         } else {
             setLancamentos(data || []);
         }
@@ -42,56 +47,66 @@ export default function FerramentasDeTestePage() {
         return () => setHeaderContent({ title: '', controls: null });
     }, [setHeaderContent, fetchLancamentos, userProfile]);
 
-    const runRpc = async (launchCode, functionName, successMessage) => {
+    // Função auxiliar para chamar RPCs e tratar erros
+    const runRpc = async (launchCode, functionName) => {
         const { data, error } = await supabase.rpc(functionName, { p_launch_code: launchCode });
         if (error) {
             throw new Error(`Erro em ${functionName}: ${error.message}`);
         }
-        // Atualiza a mensagem de sucesso para o lançamento específico
-        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: data || successMessage, type: 'success' } }));
         return data;
     };
 
+    // --- NOVA LÓGICA ORQUESTRADA ---
     const handleProcessCheckins = async (launchCode) => {
         if (isProcessing) return;
         setIsProcessing(true);
-        // Define o status inicial para este lançamento
-        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'A processar (Passo 1/3: Limpando scores)...', type: 'info' } }));
-        try {
-            await runRpc(launchCode, 'reset_scores_e_respostas', 'Scores limpos.');
-            
-            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'A processar (Passo 2/3: Reiniciando status)...', type: 'info' } }));
-            await runRpc(launchCode, 'reset_status_checkins', 'Status reiniciado.');
+        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'Iniciando reprocessamento...', type: 'info' } }));
 
-            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'A processar (Passo 3/3: Calculando scores)...', type: 'info' } }));
-            await runRpc(launchCode, 'transformar_checkins', 'Processamento concluído com sucesso.');
+        try {
+            // Passo 1: Limpar scores antigos
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'A processar (Passo 1/3: Limpando scores)...', type: 'info' } }));
+            await runRpc(launchCode, 'reset_scores_e_respostas');
             
+            // Passo 2: Reiniciar status dos check-ins
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'A processar (Passo 2/3: Reiniciando status)...', type: 'info' } }));
+            await runRpc(launchCode, 'reset_status_checkins');
+
+            // Passo 3: Reprocessar
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'A processar (Passo 3/3: Calculando scores)...', type: 'info' } }));
+            const finalMessage = await runRpc(launchCode, 'transformar_checkins');
+            
+            // Sucesso
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: finalMessage, type: 'success' } }));
+
         } catch (err) {
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
         } finally {
             setIsProcessing(false);
         }
     };
-
+    
+    // --- FUNÇÕES SEPARADAS PARA CADA AÇÃO ---
     const handleClearScores = async (launchCode) => {
         if (isProcessing) return;
         setIsProcessing(true);
-        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'Limpando scores...', type: 'info' } }));
+        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'A limpar scores...', type: 'info' } }));
         try {
-            await runRpc(launchCode, 'reset_scores_e_respostas', 'Scores e respostas limpos com sucesso.');
+            const message = await runRpc(launchCode, 'reset_scores_e_respostas');
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: message, type: 'success' } }));
         } catch (err) {
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
         } finally {
             setIsProcessing(false);
         }
     };
-
+    
     const handleResetStatus = async (launchCode) => {
         if (isProcessing) return;
         setIsProcessing(true);
-        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'Reiniciando status...', type: 'info' } }));
+        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'A reiniciar status...', type: 'info' } }));
         try {
-            await runRpc(launchCode, 'reset_status_checkins', 'Status dos check-ins reiniciado para pendente.');
+            const message = await runRpc(launchCode, 'reset_status_checkins');
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: message, type: 'success' } }));
         } catch (err) {
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
         } finally {
@@ -99,19 +114,22 @@ export default function FerramentasDeTestePage() {
         }
     };
 
-    const handleDeleteLaunch = async (launchCode) => {
+    const handleDeleteAllData = async (launchCode) => {
         if (isProcessing) return;
-        // Removido o prompt customizado para usar o confirm padrão, que é mais simples e seguro.
-        if (!window.confirm(`ATENÇÃO! Tem a certeza de que quer apagar TODOS os dados do lançamento ${launchCode}? Incluindo inscrições, check-ins e leads. Esta ação é IRREVERSÍVEL.`)) return;
+        
+        const confirm1 = window.prompt(`AÇÃO DESTRUTIVA!\n\nVocê está prestes a apagar TODOS os dados (leads, respostas, check-ins, inscrições) do lançamento "${launchCode}".\n\nPara confirmar, digite o código do lançamento abaixo:`);
+        if (confirm1 !== launchCode) {
+            toast.error('Ação cancelada. O código digitado não corresponde.');
+            return;
+        }
+
         setIsProcessing(true);
-        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'A apagar tudo do lançamento...', type: 'info' } }));
+        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: `A apagar TUDO de ${launchCode}...`, type: 'info' } }));
         try {
-            // Nota: a função RPC no Supabase foi nomeada 'apagar_dados_lancamento' na sugestão anterior
-            await runRpc(launchCode, 'apagar_dados_lancamento', `Todos os dados de ${launchCode} foram apagados.`);
-            fetchLancamentos(); // Recarregar a lista
+            const message = await runRpc(launchCode, 'limpar_dados_lancamento');
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: message, type: 'success' } }));
+            fetchLancamentos(); // Recarrega a lista após a exclusão
         } catch (err) {
-            // A função 'limpar_dados_lancamento' do seu código original pode ser usada aqui, se existir.
-            // Se o nome da função for 'limpar_dados_lancamento', troque acima.
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
         } finally {
             setIsProcessing(false);
@@ -128,12 +146,14 @@ export default function FerramentasDeTestePage() {
             <div className="bg-gray-100 dark:bg-gray-900/50 p-4 rounded-lg">
                 <p className="text-sm text-gray-600 dark:text-gray-400">Use estas ferramentas para limpar, processar ou apagar completamente os dados de teste de um lançamento específico.</p>
             </div>
-            {loading ? <p className="text-center py-8">A carregar lançamentos...</p> :
+
+            {loading ? <p className="text-center py-8 dark:text-gray-300">A carregar lançamentos...</p> :
                 lancamentos.length === 0 ? <p className="text-center py-8 text-gray-500">Nenhum lançamento encontrado para o cliente selecionado.</p> :
                 (
                     <div className="space-y-4">
                         {lancamentos.map(launch => (
                             <div key={launch.id} className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4">
+                                
                                 {processingStatus[launch.codigo] && (
                                     <div className={`mb-3 p-3 text-sm rounded-md ${
                                         processingStatus[launch.codigo].type === 'error' ? 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200' :
@@ -143,16 +163,17 @@ export default function FerramentasDeTestePage() {
                                         {processingStatus[launch.codigo].message}
                                     </div>
                                 )}
+
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                     <div>
-                                        <h3 className="font-bold text-lg text-gray-900 dark:text-white">{launch.codigo}</h3>
+                                        <h3 className="font-bold text-lg font-mono text-gray-800 dark:text-gray-200">{launch.codigo}</h3>
                                         <p className="text-sm text-gray-500 dark:text-gray-400">{launch.nome}</p>
                                     </div>
                                     <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end">
                                         <button disabled={isProcessing} onClick={() => handleProcessCheckins(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-wait"><PlayIcon /> Processar Check-ins</button>
                                         <button disabled={isProcessing} onClick={() => handleClearScores(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-wait"><TrashIcon /> Limpar Scores</button>
                                         <button disabled={isProcessing} onClick={() => handleResetStatus(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-black bg-yellow-400 rounded-md hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-wait"><RotateCwIcon /> Reiniciar Status</button>
-                                        <button disabled={isProcessing} onClick={() => handleDeleteLaunch(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-purple-700 rounded-md hover:bg-purple-800 disabled:opacity-50 disabled:cursor-wait"><AlertTriangleIcon /> Apagar TUDO</button>
+                                        <button disabled={isProcessing} onClick={() => handleDeleteAllData(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-purple-700 rounded-md hover:bg-purple-800 disabled:opacity-50 disabled:cursor-wait"><AlertTriangleIcon /> Apagar TUDO</button>
                                     </div>
                                 </div>
                             </div>

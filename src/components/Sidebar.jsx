@@ -21,6 +21,8 @@ export default function Sidebar({ userProfile }) {
             { name: 'Analise de Criativos', href: '/Dashboards/recomendacao-criativos' },
             { name: 'Criativos por Score', href: '/Dashboards/criativos-por-score' },
             { name: 'Análise de Campanha', href: '/Dashboards/analise-campanha' },
+            { name: 'Otimizador de Campanha', href: '/Dashboards/otimizador-campanhas/' },
+
             { name: 'Campanhas e Criativos', href: '/Dashboards/campanhas-criativos' },
             { name: 'Resumo Diario', href: '/Dashboards/resumo-diario' },
             { name: 'Evolução de Canal', href: '/Dashboards/evolucao-de-canal' },
@@ -28,6 +30,7 @@ export default function Sidebar({ userProfile }) {
             { name: 'Perfil de Score', href: '/Dashboards/perfil-de-score' },
             { name: 'Perfil de MQL', href: '/Dashboards/perfil-de-mql' },
             { name: 'Compradores', href: '/Dashboards/origem-compradores' },
+            { name: 'Análise de IA', href: '/Dashboards/analise-ia' },
         ],
         OPERACIONAL: [
             { name: 'Lançamentos', href: '/Operacional/lancamentos' },
@@ -36,6 +39,7 @@ export default function Sidebar({ userProfile }) {
             { name: 'Clientes', href: '/Operacional/clientes' },
             { name: 'Importar Compradores', href: '/Operacional/importar-compradores' },
             { name: 'Gerador de Links', href: '/Operacional/gerador-links' },
+
         ],
         FERRAMENTAS: [
             { name: 'Acerto respostas', href: '/Ferramentas/ferramentas-de-teste' },
