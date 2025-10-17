@@ -1,7 +1,7 @@
 // src/context/AppContext.js
 'use client';
 
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useMemo } from 'react';
 
 export const AppContext = createContext();
 
@@ -12,8 +12,6 @@ export const AppProvider = ({ children }) => {
     const [selectedClientId, setSelectedClientId] = useState('all');
     const [allClients, setAllClients] = useState([]);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-    // --- NOVO ESTADO PARA O PERFIL DO USUÁRIO ---
     const [userProfile, setUserProfile] = useState(null);
 
     useEffect(() => {
@@ -26,7 +24,11 @@ export const AppProvider = ({ children }) => {
         document.documentElement.classList.toggle('dark', theme === 'dark');
     }, [theme]);
 
-    const value = {
+    // ✅ --- AQUI ESTÁ A CORREÇÃO CRÍTICA --- ✅
+    // O `useMemo` garante que o objeto 'value' só é recriado se um dos seus
+    // valores realmente mudar. Isto impede re-renderizações desnecessárias
+    // em todos os componentes que consomem este contexto, quebrando o loop.
+    const value = useMemo(() => ({
         theme,
         setTheme,
         headerContent,
@@ -37,10 +39,16 @@ export const AppProvider = ({ children }) => {
         setAllClients,
         isMobileMenuOpen,
         setIsMobileMenuOpen,
-        // --- EXPORTANDO O NOVO ESTADO E A FUNÇÃO ---
         userProfile,
         setUserProfile,
-    };
+    }), [
+        theme, 
+        headerContent, 
+        selectedClientId, 
+        allClients, 
+        isMobileMenuOpen, 
+        userProfile
+    ]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

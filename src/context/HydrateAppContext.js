@@ -1,20 +1,23 @@
 //F:\plugscore\src\context\HydrateAppContext.js
+
 'use client';
 
 import { useContext, useEffect } from 'react';
 import { AppContext } from '@/context/AppContext';
 
-// Este componente serve como uma "ponte" para injetar dados do servidor no contexto do cliente.
 export default function HydrateAppContext({ userProfile }) {
     const { setUserProfile } = useContext(AppContext);
 
+    // ✅ --- A CORREÇÃO FINAL --- ✅
+    // O useEffect agora depende do ID do utilizador, que é uma string estável.
+    // Ele só será executado UMA VEZ quando o perfil for carregado pela primeira vez,
+    // ou se, por algum motivo, um utilizador completamente diferente fizer login.
+    // Isto QUEBRA o loop infinito de forma definitiva.
     useEffect(() => {
-        // Quando o componente carrega, ele usa a prop userProfile (vinda do servidor)
-        // para alimentar o nosso contexto global.
         if (userProfile) {
             setUserProfile(userProfile);
         }
-    }, [userProfile, setUserProfile]);
+    }, [userProfile?.id, setUserProfile]); // A dependência agora é o ID do perfil
 
     return null; // Este componente não renderiza nada na tela.
 }
