@@ -60,7 +60,7 @@ export default function AnaliseIAPage() {
     const [analysisResult, setAnalysisResult] = useState(null);
     const [error, setError] = useState(null);
 
-    // Efeito para buscar os lançamentos disponíveis, agora respeitando o filtro de cliente
+    // Efeito para buscar os lançamentos disponíveis
     useEffect(() => {
         const fetchLancamentos = async () => {
             setIsLoadingLaunches(true);
@@ -120,7 +120,7 @@ export default function AnaliseIAPage() {
         return () => setHeaderContent({ title: '', controls: null });
     }, [setHeaderContent, selectedLaunchId, lancamentos, isLoadingLaunches]);
 
-    // Efeito para buscar as perguntas de texto livre, agora respeitando o filtro de cliente
+    // Efeito para buscar as perguntas de texto livre
     useEffect(() => {
         const fetchPerguntas = async () => {
             if (!selectedLaunchId) {
@@ -133,9 +133,7 @@ export default function AnaliseIAPage() {
                 .select('id, texto')
                 .eq('classe', 'livre');
 
-            // --- AQUI ESTÁ A CORREÇÃO DO FILTRO DE PERGUNTAS ---
             if (selectedClientId && selectedClientId !== 'all') {
-                // Mostra perguntas do cliente selecionado OU perguntas globais (sem cliente)
                 query = query.or(`cliente_id.eq.${selectedClientId},cliente_id.is.null`);
             }
             
@@ -159,12 +157,15 @@ export default function AnaliseIAPage() {
         setIsLoading(true);
         setAnalysisResult(null);
         setError(null);
+        
+        const questionObject = perguntas.find(p => p.id === selectedQuestionId);
 
         try {
             const { data, error } = await supabase.functions.invoke('analisar-respostas-livres', {
                 body: {
                     launch_id: selectedLaunchId,
                     question_id: selectedQuestionId,
+                    question_text: questionObject?.texto || ''
                 },
             });
 
@@ -174,13 +175,13 @@ export default function AnaliseIAPage() {
             toast.success('Análise concluída com sucesso!');
 
         } catch (err) {
-            const errorMessage = err.context?.errorMessage || err.message;
+            const errorMessage = err.message || 'Ocorreu um erro desconhecido.';
             setError(errorMessage);
             toast.error(`Erro na análise: ${errorMessage}`);
         } finally {
             setIsLoading(false);
         }
-    }, [selectedLaunchId, selectedQuestionId, supabase]);
+    }, [selectedLaunchId, selectedQuestionId, supabase, perguntas]);
 
     return (
         <div className="p-6 space-y-6">
@@ -210,35 +211,37 @@ export default function AnaliseIAPage() {
                     <p className="text-sm text-red-600 dark:text-red-400 mt-2">{error}</p>
                  </div>
             )}
-
+            
             {analysisResult && !isLoading && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2">
-                        <ResultCard title="Resumo Executivo" icon={FileText}>
-                            <div className="prose prose-sm dark:prose-invert max-w-none">
-                                {analysisResult.resumo_executivo.split('\n').map((paragraph, index) => (
-                                    <p key={index}>{paragraph}</p>
-                                ))}
-                            </div>
-                        </ResultCard>
-                    </div>
-                    <div className="lg:col-span-1 space-y-6">
-                        <ResultCard title="Sentimento Geral" icon={BarChart2}>
-                            <SentimentDisplay sentiment={analysisResult.sentimento_geral} />
-                        </ResultCard>
-                        <ResultCard title="Palavras-Chave Frequentes" icon={Search}>
-                            <div className="flex flex-wrap gap-2">
-                                {analysisResult.palavras_frequentes.map((palavra, index) => (
-                                    <span key={index} className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 text-sm font-medium px-2.5 py-1 rounded-full">
-                                        {palavra}
-                                    </span>
-                                ))}
-                            </div>
-                        </ResultCard>
-                    </div>
+                <div className="space-y-6">
+                    {/* 1. Palavras-Chave Frequentes */}
+                    <ResultCard title="Palavras-Chave Frequentes" icon={Search}>
+                        <div className="flex flex-wrap gap-2">
+                            {analysisResult.palavras_frequentes.map((palavra, index) => (
+                                // ✅ ALTERAÇÃO AQUI: Trocado 'text-sm' por 'text-base' para aumentar a fonte das palavras-chave.
+                                <span key={index} className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 text-base font-medium px-3 py-1 rounded-full">
+                                    {palavra}
+                                </span>
+                            ))}
+                        </div>
+                    </ResultCard>
+                    
+                    {/* 2. Sentimento Geral */}
+                    <ResultCard title="Sentimento Geral" icon={BarChart2}>
+                        <SentimentDisplay sentiment={analysisResult.sentimento_geral} />
+                    </ResultCard>
+
+                    {/* 3. Resumo Executivo */}
+                    <ResultCard title="Resumo Executivo" icon={FileText}>
+                        {/* ✅ ALTERAÇÃO AQUI: Trocado 'prose-sm' por 'prose-base' para aumentar a fonte do resumo. */}
+                        <div className="prose prose-base dark:prose-invert max-w-none">
+                            {(analysisResult.resumo_executivo || '').split('\n').map((paragraph, index) => (
+                                <p key={index}>{paragraph}</p>
+                            ))}
+                        </div>
+                    </ResultCard>
                 </div>
             )}
         </div>
     );
 }
-

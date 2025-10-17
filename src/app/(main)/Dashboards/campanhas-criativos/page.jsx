@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, useMemo, useContext, Fragment 
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AppContext } from '@/context/AppContext';
 import toast, { Toaster } from 'react-hot-toast';
-// --- CORREÇÃO AQUI: Importando os ícones da biblioteca correta ---
 import { FaChevronDown, FaChevronRight, FaUsers, FaUserCheck, FaPercent } from 'react-icons/fa';
 
 // --- Componentes ---
@@ -30,6 +29,7 @@ export default function CampanhasCriativosPage() {
     const [tableData, setTableData] = useState([]);
     const [expandedCampaigns, setExpandedCampaigns] = useState({});
 
+    // ✅ CORREÇÃO 1: A chave para expandir/recolher agora usa 'campaign_name'
     const toggleCampaign = (campaignName) => setExpandedCampaigns(prev => ({ ...prev, [campaignName]: !prev[campaignName] }));
 
     useEffect(() => {
@@ -45,7 +45,7 @@ export default function CampanhasCriativosPage() {
                     const inProgress = sorted.find(l => l.status === 'Em andamento');
                     setSelectedLaunch(inProgress ? inProgress.id : sorted[0].id);
                 } else {
-                    setIsLoadingData(false); // Para o loading se não houver lançamentos
+                    setIsLoadingData(false);
                 }
             })
             .catch(err => toast.error("Erro ao buscar lançamentos."))
@@ -111,21 +111,24 @@ export default function CampanhasCriativosPage() {
                         {tableData.length === 0 ? (
                             <p className="text-center py-10 text-gray-500 dark:text-gray-400">Nenhum dado de tráfego pago encontrado para este lançamento.</p>
                         ) : tableData.map((campaign) => (
-                            <div key={campaign.name} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                                <div onClick={() => toggleCampaign(campaign.name)} className="bg-gray-100 dark:bg-gray-900/50 p-3 flex justify-between items-center cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700/50">
+                            // ✅ CORREÇÃO 2: A key da linha agora usa 'campaign_name' para ser única e estável.
+                            <div key={campaign.campaign_name} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                <div onClick={() => toggleCampaign(campaign.campaign_name)} className="bg-gray-100 dark:bg-gray-900/50 p-3 flex justify-between items-center cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700/50">
                                     <div className="flex items-center gap-3">
                                         <div className="text-gray-500 dark:text-gray-400">
-                                            {expandedCampaigns[campaign.name] ? <FaChevronDown /> : <FaChevronRight />}
+                                            {expandedCampaigns[campaign.campaign_name] ? <FaChevronDown /> : <FaChevronRight />}
                                         </div>
-                                        <span className="font-bold text-gray-800 dark:text-gray-100">{campaign.name}</span>
+                                        {/* ✅ CORREÇÃO 3: Exibindo o nome da campanha usando a propriedade correta 'campaign_name'. */}
+                                        <span className="font-bold text-gray-800 dark:text-gray-100">{campaign.campaign_name}</span>
                                     </div>
                                     <div className="hidden sm:flex items-center gap-6 text-sm font-semibold text-gray-700 dark:text-gray-300">
                                         <span>Inscrições: <span className="font-bold text-blue-600 dark:text-blue-400">{campaign.inscricoes.toLocaleString('pt-BR')}</span></span>
                                         <span>Check-ins: <span className="font-bold text-blue-600 dark:text-blue-400">{campaign.checkins.toLocaleString('pt-BR')}</span></span>
-                                        <span>Taxa: <span className="font-bold text-blue-600 dark:text-blue-400">{campaign.checkinRate}</span></span>
+                                        {/* ✅ CORREÇÃO 4: Usando 'checkin_rate' para a taxa. */}
+                                        <span>Taxa: <span className="font-bold text-blue-600 dark:text-blue-400">{campaign.checkin_rate}</span></span>
                                     </div>
                                 </div>
-                                {expandedCampaigns[campaign.name] && (
+                                {expandedCampaigns[campaign.campaign_name] && (
                                     <div className="p-4 overflow-x-auto">
                                         <table className="min-w-full text-sm">
                                             <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400">

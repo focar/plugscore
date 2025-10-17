@@ -8,7 +8,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { FaSpinner, FaFileCsv, FaFilter, FaUsers, FaUserCheck, FaGlobe, FaBullseye, FaPercent } from 'react-icons/fa';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 
-// --- Componentes de UI ---
+// --- Componentes de UI (sem alterações) ---
 const KpiCard = ({ title, value, icon: Icon }) => (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm flex items-center gap-4">
         <div className="bg-blue-100 dark:bg-gray-700 p-3 rounded-full">
@@ -20,7 +20,6 @@ const KpiCard = ({ title, value, icon: Icon }) => (
         </div>
     </div>
 );
-
 const ScoreDistributionChart = ({ data }) => (
     <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md">
         <h2 className="text-lg font-semibold text-slate-700 dark:text-gray-200 mb-4">Distribuição por Score (Filtro)</h2>
@@ -37,7 +36,6 @@ const ScoreDistributionChart = ({ data }) => (
         </div>
     </div>
 );
-
 const DailyEvolutionChart = ({ data }) => (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
         <h2 className="text-lg font-semibold text-slate-700 dark:text-gray-200 mb-4">Evolução Diária (Filtro)</h2>
@@ -54,8 +52,8 @@ const DailyEvolutionChart = ({ data }) => (
         </ResponsiveContainer>
     </div>
 );
-
 const ScoringTable = ({ data, launchName }) => {
+    // ... (lógica de exportação sem alterações)
     const exportToCSV = () => {
         const headers = ["Canal", "Inscrições", "Check-ins", "Frio (<35)", "Morno-Frio", "Morno", "Quente-Morno", "Quente (>80)"];
         const csvRows = [
@@ -76,7 +74,6 @@ const ScoringTable = ({ data, launchName }) => {
         link.click();
         document.body.removeChild(link);
     };
-
     return (
         <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md">
             <div className="flex justify-between items-center mb-4">
@@ -117,7 +114,6 @@ const ScoringTable = ({ data, launchName }) => {
     );
 };
 
-
 // --- Componente Principal da Página ---
 export default function LeadScoringPage() {
     const supabase = createClientComponentClient();
@@ -133,50 +129,69 @@ export default function LeadScoringPage() {
     
     const [dashboardData, setDashboardData] = useState(null);
 
-    // Efeito para buscar lançamentos
+    // ✅ CORREÇÃO: Unificamos os dois useEffects problemáticos em um só.
     useEffect(() => {
         if (!userProfile) return;
-        const fetchLaunches = async () => {
+
+        const setupPage = async () => {
             setIsLoadingLaunches(true);
+            
+            // 1. Busca os lançamentos
             const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id;
             const { data, error } = await supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend });
 
             if (error) {
                 toast.error("Erro ao buscar lançamentos.");
                 setLaunches([]);
-            } else {
-                const filtered = (data || []).filter(l => l.status !== 'Planejado');
-                const sorted = [...filtered].sort((a, b) => {
-                    if (a.status === 'Em andamento' && b.status !== 'Em andamento') return -1;
-                    if (b.status === 'Em andamento' && a.status !== 'Em andamento') return 1;
-                    return (a.codigo || a.nome).localeCompare(b.codigo || b.nome);
-                });
-                setLaunches(sorted);
-                if (sorted.length > 0) {
-                    const inProgress = sorted.find(l => l.status === 'Em andamento');
-                    setSelectedLaunch(inProgress ? inProgress.id : sorted[0].id);
-                } else {
-                    setSelectedLaunch('');
-                }
+                setHeaderContent({ title: 'Distribuição de Lead Scoring', controls: null });
+                setIsLoadingLaunches(false);
+                return;
             }
+            
+            // Processa e define os lançamentos no estado
+            const filtered = (data || []).filter(l => l.status !== 'Planejado');
+            const sorted = [...filtered].sort((a, b) => {
+                if (a.status === 'Em andamento' && b.status !== 'Em andamento') return -1;
+                if (b.status === 'Em andamento' && a.status !== 'Em andamento') return 1;
+                return (a.codigo || a.nome).localeCompare(b.codigo || b.nome);
+            });
+            setLaunches(sorted);
+            
+            let currentLaunchId = '';
+            if (sorted.length > 0) {
+                const inProgress = sorted.find(l => l.status === 'Em andamento');
+                currentLaunchId = inProgress ? inProgress.id : sorted[0].id;
+                setSelectedLaunch(currentLaunchId);
+            } else {
+                setSelectedLaunch('');
+            }
+
+            // 2. Monta o seletor de lançamento (lógica do segundo useEffect)
+            const launchSelector = (
+                <select 
+                    value={currentLaunchId} 
+                    onChange={e => setSelectedLaunch(e.target.value)} 
+                    disabled={sorted.length === 0} 
+                    className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2"
+                >
+                    {sorted.length > 0 ? 
+                     sorted.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
+                     <option>Nenhum lançamento</option>}
+                </select>
+            );
+
+            // 3. Atualiza o header uma única vez
+            setHeaderContent({ title: 'Distribuição de Lead Scoring', controls: launchSelector });
+
             setIsLoadingLaunches(false);
         };
-        fetchLaunches();
-    }, [userProfile, selectedClientId, supabase]);
 
-    // Efeito para configurar o Header dinamicamente
-    useEffect(() => {
-        const launchSelector = (
-            <select value={selectedLaunch} onChange={e => setSelectedLaunch(e.target.value)} disabled={isLoadingLaunches || launches.length === 0} className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2">
-                {isLoadingLaunches ? <option>A carregar...</option> : 
-                 launches.length > 0 ? 
-                 launches.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
-                 <option>Nenhum lançamento</option>}
-            </select>
-        );
-        setHeaderContent({ title: 'Distribuição de Lead Scoring', controls: launchSelector });
+        setupPage();
+
+        // Limpeza do header ao sair da página
         return () => setHeaderContent({ title: '', controls: null });
-    }, [setHeaderContent, selectedLaunch, launches, isLoadingLaunches]);
+        
+    }, [userProfile, selectedClientId, supabase, setHeaderContent]); // Dependências estáveis
 
 
     // Efeito para buscar todos os dados da dashboard de uma só vez
@@ -199,7 +214,6 @@ export default function LeadScoringPage() {
                 setDashboardData(null);
             } else {
                 setDashboardData(data);
-                // Extrai as opções de filtro dos dados retornados
                 setFilterOptions({
                     sources: data.filter_options?.sources || [],
                     mediums: data.filter_options?.mediums || [],
@@ -213,14 +227,12 @@ export default function LeadScoringPage() {
     }, [selectedLaunch, filters, userProfile, selectedClientId, supabase]);
     
     const { generalKpis, filteredKpis, scoreDistributionChartData, dailyEvolutionChartData, scoringTableData } = useMemo(() => {
+        // ... (lógica de memoização sem alterações)
         const data = dashboardData || {};
-        
         const genKpis = data.general_kpis || { inscricoes: 0, checkins: 0 };
         const taxaCheckinGeral = genKpis.inscricoes > 0 ? (genKpis.checkins / genKpis.inscricoes) * 100 : 0;
-        
         const filtKpis = data.filtered_kpis || { inscricoes: 0, checkins: 0 };
         const taxaCheckinFiltrado = filtKpis.inscricoes > 0 ? (filtKpis.checkins / filtKpis.inscricoes) * 100 : 0;
-
         const scoreData = data.score_distribution || {};
         const scoreChart = [
             { name: 'Quente (>80)', value: scoreData.quente_mais_80 || 0, fill: '#fa0606ff' },
@@ -229,7 +241,6 @@ export default function LeadScoringPage() {
             { name: 'Morno-Frio (35-49)', value: scoreData.morno_frio || 0, fill: '#32abd3ff' },
             { name: 'Frio (<35)', value: scoreData.frio_menos_35 || 0, fill: '#4112e9ff' },
         ].filter(item => item.value > 0);
-
         return {
             generalKpis: { ...genKpis, taxaCheckin: taxaCheckinGeral },
             filteredKpis: { ...filtKpis, taxaCheckin: taxaCheckinFiltrado },
@@ -239,8 +250,8 @@ export default function LeadScoringPage() {
         }
     }, [dashboardData]);
 
-
     const handleFilterChange = (level, value) => {
+        // ... (lógica de filtros sem alterações)
         if (level === 'source') {
             setFilters({ source: value, medium: 'all', content: 'all' });
         } else if (level === 'medium') {
