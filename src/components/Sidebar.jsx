@@ -85,12 +85,14 @@ export default function Sidebar({ userProfile }) {
                 transition-transform duration-300 ease-in-out 
                 lg:sticky lg:translate-x-0 lg:h-full
                 ${isMobileMenuOpen ? 'translate-x-0 h-screen' : '-translate-x-full'}`}>
+
+  
                 
                 <Link href="/" onClick={handleLinkClick} className="flex items-center gap-3 mb-8 px-2 transition-opacity hover:opacity-80">
                     <Image src="https://qmnhgbdkgnbvfdxhbtst.supabase.co/storage/v1/object/public/img/logo_mini01.png" alt="Logótipo do PlugScore" width={48} height={48} className="h-12 w-12"/>
                     <div>
-                        <h1 className="text-white text-xl font-bold">PlugScore</h1>
-                        <div className="text-xs text-gray-400 flex items-center gap-2">
+                        <h1 className="text-[#4fc0db] text-xl font-bold">PlugScore</h1>
+                        <div className="text-xs text-gray-400 flex items-center gap-3">
                             <span>v 1.0</span><span className="font-bold">by Focar</span>
                         </div>
                     </div>

@@ -1,0 +1,162 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+};
+Deno.serve(async (req)=>{
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', {
+      headers: corsHeaders
+    });
+  }
+  try {
+    const { launch_id, question_id, question_text } = await req.json();
+    if (!launch_id || !question_id || !question_text) {
+      return new Response(JSON.stringify({
+        error: 'launch_id, question_id e question_text são obrigatórios.'
+      }), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 400
+      });
+    }
+    const supabaseClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+      global: {
+        headers: {
+          Authorization: req.headers.get('Authorization')
+        }
+      }
+    });
+    const { data: respostas, error: dbError } = await supabaseClient.rpc('get_respostas_livres_por_pergunta', {
+      p_launch_id: launch_id,
+      p_question_id: question_id
+    });
+    if (dbError) throw dbError;
+    if (!respostas || respostas.length === 0) {
+      const noDataResponse = {
+        palavras_frequentes: [],
+        sentimento_geral: 'Neutro/Misto',
+        resumo_executivo: 'Não foram encontradas respostas suficientes para realizar a análise.'
+      };
+      return new Response(JSON.stringify(noDataResponse), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        },
+        status: 200
+      });
+    }
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    if (!GEMINI_API_KEY) {
+      throw new Error('A variável de ambiente GEMINI_API_KEY não está configurada.');
+    }
+    const listaDeRespostas = respostas.map((r)=>`- ${r.resposta}`).join('\n');
+    const prompt = `
+
+      Você é um analista de marketing e pesquisa de mercado, especialista em extrair insights de feedback de clientes.
+
+      Analise a seguinte lista de respostas para a pergunta: "${question_text}".
+
+      Sua tarefa é executar três missões:
+
+      1. Extração de Palavras-Chave: Identifique os 15 termos (substantivos e adjetivos) mais frequentes e relevantes.
+
+      2. Análise de Sentimento: Classifique o sentimento geral como 'Positivo', 'Negativo' ou 'Neutro/Misto'.
+
+      3. Resumo Executivo: Escreva um resumo conciso em 3 parágrafos que capture os principais temas e dores.
+
+      Retorne sua análise estritamente no seguinte formato JSON, sem nenhuma formatação adicional como \`\`\`json:
+
+      {
+
+          "palavras_frequentes": ["palavra1", "palavra2"],
+
+          "sentimento_geral": "...",
+
+          "resumo_executivo": "..."
+
+      }
+
+      LISTA DE RESPOSTAS PARA ANÁLISE:
+
+      ${listaDeRespostas}
+
+    `;
+    // ✅ --- A CORREÇÃO FINAL: Usando o modelo 'gemini-2.5-flash' --- ✅
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiApiReponse = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt
+              }
+            ]
+          }
+        ]
+      })
+    });
+    if (!geminiApiReponse.ok) {
+      const errorText = await geminiApiReponse.text();
+      console.error("Erro da API Gemini:", errorText);
+      throw new Error(`Erro ao chamar a API Gemini: ${geminiApiReponse.status}`);
+    }
+    const geminiData = await geminiApiReponse.json();
+    const rawJsonText = geminiData.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '');
+    const analysisResult = JSON.parse(rawJsonText);
+    return new Response(JSON.stringify(analysisResult), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 200
+    });
+  } catch (error) {
+    console.error('Erro na Edge Function:', error);
+    return new Response(JSON.stringify({
+      error: error.message
+    }), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      status: 500
+    });
+  }
+});
+
+
+
+
+
+get.
+
+-- VERSÃO FINAL OTIMIZADA (Copie e Cole esta)
+
+CREATE OR REPLACE FUNCTION public.get_respostas_livres_por_pergunta(
+    p_launch_id uuid,
+    p_question_id uuid,
+    p_limit integer,      -- <== PARÂMETRO ADICIONADO
+    p_offset integer      -- <== PARÂMETRO ADICIONADO
+)
+RETURNS TABLE(resposta text)
+LANGUAGE sql
+AS $$
+  SELECT 
+    rl.respostas_livres ->> p_question_id::text as resposta
+  FROM 
+    public.respostas_leads AS rl
+  WHERE 
+    rl.lancamento_id = p_launch_id
+    -- Garante que a chave da pergunta existe no JSON antes de tentar extrair
+    AND rl.respostas_livres ? p_question_id::text
+  LIMIT p_limit           -- <== LINHA ADICIONADA
+  OFFSET p_offset;        -- <== LINHA ADICIONADA
+$$;

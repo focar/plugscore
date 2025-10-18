@@ -7,148 +7,29 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import toast, { Toaster } from 'react-hot-toast';
 import { Sparkles, BrainCircuit, Search, FileText, BarChart2 } from 'lucide-react';
 
-// --- COMPONENTES DA UI ---
-
-const Select = React.forwardRef((props, ref) => (
-    <select {...props} ref={ref} className="block w-full px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" />
-));
-Select.displayName = 'Select';
-
-const ResultCard = ({ title, icon: Icon, children }) => (
-    <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 h-full">
-        <div className="flex items-center gap-3 mb-4">
-            <Icon className="text-blue-500" size={24} />
-            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">{title}</h3>
-        </div>
-        <div className="text-gray-600 dark:text-gray-300 space-y-4">
-            {children}
-        </div>
-    </div>
-);
-
-const LoadingSpinner = () => (
-    <div className="flex flex-col items-center justify-center text-center p-10 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-        <BrainCircuit className="text-blue-500 animate-pulse" size={48} />
-        <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">A IA está a analisar as respostas...</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Isto pode levar alguns segundos, por favor aguarde.</p>
-    </div>
-);
-
-const SentimentDisplay = ({ sentiment }) => {
-    const sentimentConfig = {
-        'Positivo': { color: 'text-green-500', text: 'O sentimento geral é positivo.' },
-        'Negativo': { color: 'text-red-500', text: 'O sentimento geral é negativo.' },
-        'Neutro/Misto': { color: 'text-yellow-500', text: 'O sentimento geral é neutro ou misto.' },
-    };
-    const config = sentimentConfig[sentiment] || { color: 'text-gray-500', text: 'Sentimento não determinado.' };
-    return <p className={`font-bold text-lg ${config.color}`}>{config.text}</p>;
-};
+// --- Componentes da UI ---
+const Select = React.forwardRef((props, ref) => (<select {...props} ref={ref} className="block w-full px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" />)); Select.displayName = 'Select';
+const ResultCard = ({ title, icon: Icon, children }) => (<div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 h-full"><div className="flex items-center gap-3 mb-4"><Icon className="text-blue-500" size={24} /><h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">{title}</h3></div><div className="text-gray-600 dark:text-gray-300 space-y-4">{children}</div></div>);
+const LoadingSpinner = () => (<div className="flex flex-col items-center justify-center text-center p-10 bg-gray-50 dark:bg-gray-800/50 rounded-lg"><BrainCircuit className="text-blue-500 animate-pulse" size={48} /><p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">A IA está a analisar as respostas...</p><p className="text-sm text-gray-500 dark:text-gray-400">Isto pode levar alguns segundos, por favor aguarde.</p></div>);
+const SentimentDisplay = ({ sentiment }) => { const config = { 'Positivo': { color: 'text-green-500', text: 'O sentimento geral é positivo.' }, 'Negativo': { color: 'text-red-500', text: 'O sentimento geral é negativo.' }, 'Neutro/Misto': { color: 'text-yellow-500', text: 'O sentimento geral é neutro ou misto.' }, }[sentiment] || { color: 'text-gray-500', text: 'Sentimento não determinado.' }; return <p className={`font-bold text-lg ${config.color}`}>{config.text}</p>; };
 
 // --- PÁGINA PRINCIPAL ---
-
 export default function AnaliseIAPage() {
     const { setHeaderContent, selectedClientId } = useContext(AppContext);
     const supabase = createClientComponentClient();
-
     const [lancamentos, setLancamentos] = useState([]);
     const [perguntas, setPerguntas] = useState([]);
     const [selectedLaunchId, setSelectedLaunchId] = useState('');
     const [selectedQuestionId, setSelectedQuestionId] = useState('');
-    
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingLaunches, setIsLoadingLaunches] = useState(true);
     const [analysisResult, setAnalysisResult] = useState(null);
     const [error, setError] = useState(null);
 
-    // Efeito para buscar os lançamentos disponíveis
-    useEffect(() => {
-        const fetchLancamentos = async () => {
-            setIsLoadingLaunches(true);
-            let query = supabase.from('lancamentos').select('id, nome, codigo, status');
-            
-            if (selectedClientId && selectedClientId !== 'all') {
-                query = query.eq('cliente_id', selectedClientId);
-            }
+    useEffect(() => { const fetchLancamentos = async () => { setIsLoadingLaunches(true); let query = supabase.from('lancamentos').select('id, nome, codigo, status'); if (selectedClientId && selectedClientId !== 'all') { query = query.eq('cliente_id', selectedClientId); } const { data, error } = await query.order('codigo', { ascending: true }); if (error) { toast.error('Erro ao buscar lançamentos.'); setLancamentos([]); } else { const sorted = [...(data || [])].sort((a, b) => { if (a.status === 'Em andamento' && b.status !== 'Em andamento') return -1; if (b.status === 'Em andamento' && a.status !== 'Em andamento') return 1; return (b.codigo || b.nome).localeCompare(a.codigo || a.nome); }); setLancamentos(sorted); if (sorted.length > 0) { const inProgress = sorted.find(l => l.status === 'Em andamento'); setSelectedLaunchId(inProgress ? inProgress.id : sorted[0].id); } else { setSelectedLaunchId(''); } } setIsLoadingLaunches(false); }; fetchLancamentos(); }, [supabase, selectedClientId]);
+    useEffect(() => { const launchSelector = ( <select value={selectedLaunchId} onChange={e => { setSelectedLaunchId(e.target.value); setSelectedQuestionId(''); setAnalysisResult(null); }} disabled={isLoadingLaunches || lancamentos.length === 0} className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2" > {isLoadingLaunches ? <option>A carregar...</option> : lancamentos.length > 0 ? lancamentos.map(l => <option key={l.id} value={l.id}>{l.codigo} ({l.status})</option>) : <option>Nenhum lançamento</option>} </select> ); setHeaderContent({ title: 'Análise de Respostas com IA', controls: launchSelector }); return () => setHeaderContent({ title: '', controls: null }); }, [setHeaderContent, selectedLaunchId, lancamentos, isLoadingLaunches]);
+    useEffect(() => { const fetchPerguntas = async () => { if (!selectedLaunchId) { setPerguntas([]); return; } let query = supabase.from('perguntas').select('id, texto').eq('classe', 'livre'); if (selectedClientId && selectedClientId !== 'all') { query = query.or(`cliente_id.eq.${selectedClientId},cliente_id.is.null`); } const { data, error } = await query.order('texto'); if (error) { toast.error('Erro ao buscar perguntas de texto livre.'); } else { setPerguntas(data || []); } }; fetchPerguntas(); }, [selectedLaunchId, selectedClientId, supabase]);
 
-            const { data, error } = await query.order('codigo', { ascending: true });
-            
-            if (error) {
-                toast.error('Erro ao buscar lançamentos.');
-                setLancamentos([]);
-            } else {
-                const sorted = [...(data || [])].sort((a, b) => {
-                    if (a.status === 'Em andamento' && b.status !== 'Em andamento') return -1;
-                    if (b.status === 'Em andamento' && a.status !== 'Em andamento') return 1;
-                    return (b.codigo || b.nome).localeCompare(a.codigo || a.nome);
-                });
-                setLancamentos(sorted);
-
-                if (sorted.length > 0) {
-                    const inProgress = sorted.find(l => l.status === 'Em andamento');
-                    setSelectedLaunchId(inProgress ? inProgress.id : sorted[0].id);
-                } else {
-                    setSelectedLaunchId('');
-                }
-            }
-            setIsLoadingLaunches(false);
-        };
-        fetchLancamentos();
-    }, [supabase, selectedClientId]);
-
-    // Efeito para enviar o seletor para o Header
-    useEffect(() => {
-        const launchSelector = (
-            <select 
-                value={selectedLaunchId} 
-                onChange={e => {
-                    setSelectedLaunchId(e.target.value);
-                    setSelectedQuestionId('');
-                    setAnalysisResult(null);
-                }} 
-                disabled={isLoadingLaunches || lancamentos.length === 0} 
-                className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2"
-            >
-                {isLoadingLaunches ? <option>A carregar...</option> :
-                    lancamentos.length > 0 ?
-                    lancamentos.map(l => <option key={l.id} value={l.id}>{l.codigo} ({l.status})</option>) :
-                    <option>Nenhum lançamento</option>}
-            </select>
-        );
-        
-        setHeaderContent({ title: 'Análise de Respostas com IA', controls: launchSelector });
-        
-        return () => setHeaderContent({ title: '', controls: null });
-    }, [setHeaderContent, selectedLaunchId, lancamentos, isLoadingLaunches]);
-
-    // Efeito para buscar as perguntas de texto livre
-    useEffect(() => {
-        const fetchPerguntas = async () => {
-            if (!selectedLaunchId) {
-                setPerguntas([]);
-                return;
-            }
-            
-            let query = supabase
-                .from('perguntas')
-                .select('id, texto')
-                .eq('classe', 'livre');
-
-            if (selectedClientId && selectedClientId !== 'all') {
-                query = query.or(`cliente_id.eq.${selectedClientId},cliente_id.is.null`);
-            }
-            
-            const { data, error } = await query.order('texto');
-
-            if (error) {
-                toast.error('Erro ao buscar perguntas de texto livre.');
-            } else {
-                setPerguntas(data || []);
-            }
-        };
-        fetchPerguntas();
-    }, [selectedLaunchId, selectedClientId, supabase]);
-
-    // Função para chamar a análise de IA
     const handleAnalyze = useCallback(async () => {
         if (!selectedLaunchId || !selectedQuestionId) {
             toast.error('Por favor, selecione uma pergunta para analisar.');
@@ -186,7 +67,6 @@ export default function AnaliseIAPage() {
     return (
         <div className="p-6 space-y-6">
             <Toaster position="top-center" />
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
                 <div>
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">1. Selecione a Pergunta</label>
@@ -202,46 +82,9 @@ export default function AnaliseIAPage() {
                     </button>
                 </div>
             </div>
-
             {isLoading && <LoadingSpinner />}
-
-            {error && !isLoading && (
-                 <div className="text-center p-10 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                    <p className="text-lg font-semibold text-red-700 dark:text-red-300">Ocorreu um Erro</p>
-                    <p className="text-sm text-red-600 dark:text-red-400 mt-2">{error}</p>
-                 </div>
-            )}
-            
-            {analysisResult && !isLoading && (
-                <div className="space-y-6">
-                    {/* 1. Palavras-Chave Frequentes */}
-                    <ResultCard title="Palavras-Chave Frequentes" icon={Search}>
-                        <div className="flex flex-wrap gap-2">
-                            {analysisResult.palavras_frequentes.map((palavra, index) => (
-                                // ✅ ALTERAÇÃO AQUI: Trocado 'text-sm' por 'text-base' para aumentar a fonte das palavras-chave.
-                                <span key={index} className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 text-base font-medium px-3 py-1 rounded-full">
-                                    {palavra}
-                                </span>
-                            ))}
-                        </div>
-                    </ResultCard>
-                    
-                    {/* 2. Sentimento Geral */}
-                    <ResultCard title="Sentimento Geral" icon={BarChart2}>
-                        <SentimentDisplay sentiment={analysisResult.sentimento_geral} />
-                    </ResultCard>
-
-                    {/* 3. Resumo Executivo */}
-                    <ResultCard title="Resumo Executivo" icon={FileText}>
-                        {/* ✅ ALTERAÇÃO AQUI: Trocado 'prose-sm' por 'prose-base' para aumentar a fonte do resumo. */}
-                        <div className="prose prose-base dark:prose-invert max-w-none">
-                            {(analysisResult.resumo_executivo || '').split('\n').map((paragraph, index) => (
-                                <p key={index}>{paragraph}</p>
-                            ))}
-                        </div>
-                    </ResultCard>
-                </div>
-            )}
+            {error && !isLoading && ( <div className="text-center p-10 bg-red-50 dark:bg-red-900/20 rounded-lg"> <p className="text-lg font-semibold text-red-700 dark:text-red-300">Ocorreu um Erro</p> <p className="text-sm text-red-600 dark:text-red-400 mt-2">{error}</p> </div> )}
+            {analysisResult && !isLoading && ( <div className="space-y-6"> <ResultCard title="Palavras-Chave Frequentes" icon={Search}><div className="flex flex-wrap gap-2">{analysisResult.palavras_frequentes.map((palavra, index) => ( <span key={index} className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 text-base font-medium px-3 py-1 rounded-full">{palavra}</span> ))}</div></ResultCard> <ResultCard title="Sentimento Geral" icon={BarChart2}><SentimentDisplay sentiment={analysisResult.sentimento_geral} /></ResultCard> <ResultCard title="Resumo Executivo" icon={FileText}><div className="prose prose-base dark:prose-invert max-w-none">{(analysisResult.resumo_executivo || '').split('\n').map((paragraph, index) => ( <p key={index}>{paragraph}</p> ))}</div></ResultCard> </div> )}
         </div>
     );
 }

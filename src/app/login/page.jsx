@@ -63,7 +63,7 @@ export default function LoginPage() {
                         height={80}
                         priority
                     />
-                    <h1 className="text-white text-3xl font-bold mt-4">
+                    <h1 className="text-[#4fc0db] text-4xl font-bold mt-4">
                         PlugScore
                     </h1>
                 </div>

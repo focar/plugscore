@@ -7,7 +7,7 @@ import { AppContext } from '@/context/AppContext';
 import toast, { Toaster } from 'react-hot-toast';
 
 // --- Ícones ---
-const SearchIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>);
+const SearchIcon = (props) => (<svg xmlns="http://www.w.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>);
 
 // --- Componentes ---
 const Input = React.forwardRef((props, ref) => {
@@ -20,39 +20,32 @@ const Select = React.forwardRef((props, ref) => {
 });
 
 export default function RegrasDePontuacaoPage() {
+    // REVERTIDO: Voltamos a usar o setHeaderContent e os dados do perfil/cliente.
     const { setHeaderContent, userProfile, selectedClientId } = useContext(AppContext);
     const supabase = createClientComponentClient();
 
+    // ADICIONADO: O estado para lançamentos volta a ser local, como no exemplo que você enviou.
     const [launches, setLaunches] = useState([]);
     const [selectedLaunchId, setSelectedLaunchId] = useState('');
+    const [launchesLoading, setLaunchesLoading] = useState(true);
+    
     const [perguntas, setPerguntas] = useState([]);
     const [selectedPergunta, setSelectedPergunta] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     
-    const [loading, setLoading] = useState({ launches: true, perguntas: false, regras: false });
+    const [loading, setLoading] = useState({ perguntas: false, regras: false });
     const [isSaving, setIsSaving] = useState(false);
     const [rulesForm, setRulesForm] = useState({ classe: 'score', regras: [] });
-
-    // Efeito para definir o título estático no Header
-    useEffect(() => {
-        setHeaderContent({ title: 'Regras de Pontuação', controls: null });
-        return () => setHeaderContent({ title: '', controls: null });
-    }, [setHeaderContent]);
-
-    // 1. Busca os lançamentos disponíveis com base no cliente selecionado
+    
+    // ADICIONADO: Lógica para buscar os lançamentos, igual à da página de exemplo.
     useEffect(() => {
         if (!userProfile) return;
+        setLaunchesLoading(true);
+        const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id;
         
-        const fetchLaunches = async () => {
-            setLoading(prev => ({ ...prev, launches: true }));
-            const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id;
-            
-            const { data, error } = await supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend });
-
-            if (error) {
-                toast.error("Erro ao buscar lançamentos.");
-                setLaunches([]);
-            } else {
+        supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend })
+            .then(({ data, error }) => {
+                if (error) throw error;
                 const sorted = (data || []).sort((a, b) => (a.codigo || a.nome).localeCompare(b.codigo || b.nome));
                 setLaunches(sorted);
                 if (sorted.length > 0) {
@@ -60,14 +53,35 @@ export default function RegrasDePontuacaoPage() {
                 } else {
                     setSelectedLaunchId('');
                 }
-            }
-            setLoading(prev => ({ ...prev, launches: false }));
-        };
-
-        fetchLaunches();
+            })
+            .catch(err => toast.error("Erro ao buscar lançamentos."))
+            .finally(() => setLaunchesLoading(false));
     }, [userProfile, selectedClientId, supabase]);
 
-    // 2. Busca as perguntas associadas ao lançamento selecionado
+    // MODIFICADO: O seletor no Header agora usa o estado local e o estilo correto.
+    useEffect(() => {
+        const headerControls = (
+            <select 
+                value={selectedLaunchId} 
+                onChange={e => setSelectedLaunchId(e.target.value)} 
+                disabled={launchesLoading || launches.length === 0}
+                // CORRIGIDO: Aplicado o estilo da outra página para limitar o tamanho.
+                className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2"
+            >
+                {launchesLoading ? <option>A carregar...</option> : 
+                 launches.length > 0 ? 
+                 launches.map(l => <option key={l.id} value={l.id}>{l.codigo || l.nome}</option>) :
+                 <option>Nenhum lançamento</option>}
+            </select>
+        );
+
+        setHeaderContent({ title: 'Regras de Pontuação', controls: headerControls });
+        
+        return () => setHeaderContent({ title: '', controls: null });
+    }, [setHeaderContent, launches, launchesLoading, selectedLaunchId]);
+
+
+    // NENHUMA MUDANÇA ABAIXO DESTA LINHA (a lógica interna da página já estava correta)
     useEffect(() => {
         if (!selectedLaunchId) {
             setPerguntas([]);
@@ -93,7 +107,6 @@ export default function RegrasDePontuacaoPage() {
         fetchPerguntas();
     }, [selectedLaunchId, supabase]);
 
-    // 3. Busca as regras existentes para a pergunta selecionada
     useEffect(() => {
         if (!selectedPergunta || !selectedLaunchId) {
             setRulesForm({ classe: 'score', regras: [] });
@@ -187,18 +200,6 @@ export default function RegrasDePontuacaoPage() {
         <div className="space-y-6">
             <Toaster position="top-center" />
             
-            <div className="lg:max-w-md">
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-                    <label htmlFor="launch-selector" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Selecione o Lançamento</label>
-                    <select id="launch-selector" value={selectedLaunchId} onChange={e => setSelectedLaunchId(e.target.value)} disabled={loading.launches || launches.length === 0} className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
-                        {loading.launches ? <option>A carregar...</option> : 
-                         launches.length > 0 ? 
-                         launches.map(l => <option key={l.id} value={l.id}>{l.codigo || l.nome}</option>) :
-                         <option>Nenhum lançamento para este cliente</option>}
-                    </select>
-                </div>
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                 <div className="lg:col-span-1 bg-white dark:bg-gray-800 shadow-md rounded-lg p-4 flex flex-col gap-4">
                     <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Perguntas do Lançamento</h2>
@@ -218,7 +219,7 @@ export default function RegrasDePontuacaoPage() {
 
                 <div className="lg:col-span-2 sticky top-24">
                      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 min-h-[20rem]">
-                         {!selectedPergunta ? <p className="text-center text-gray-500 dark:text-gray-400">Selecione uma pergunta à esquerda.</p> :
+                          {!selectedPergunta ? <p className="text-center text-gray-500 dark:text-gray-400">Selecione uma pergunta à esquerda.</p> :
                             (
                                 <form onSubmit={handleSaveAllRules}>
                                     <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">Regras para: <span className="text-blue-600 dark:text-blue-400 font-normal">{selectedPergunta.texto}</span></h3>
@@ -258,4 +259,3 @@ export default function RegrasDePontuacaoPage() {
         </div>
     );
 }
-

@@ -19,7 +19,7 @@ export default function HomePage() {
       <div className="text-center">
         
         {/* Título principal com o estilo da imagem */}
-        <h1 className="text-8xl md:text-10xl font-extrabold uppercase tracking-wider text-emerald-400">
+        <h1 className="text-8xl md:text-10xl font-extrabold uppercase tracking-wider text-[#4fc0db] uppercase">
           Plug Score
         </h1>
         
