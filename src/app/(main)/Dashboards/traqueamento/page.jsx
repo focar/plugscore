@@ -135,7 +135,7 @@ export default function TraqueamentoPage() {
                  <option>Nenhum lançamento</option>}
             </select>
         );
-        setHeaderContent({ title: 'Dashboard de Traqueamento', controls: launchSelector });
+        setHeaderContent({ title: 'Traqueamento de Trafego', controls: launchSelector });
         return () => setHeaderContent({ title: '', controls: null });
     }, [setHeaderContent, selectedLaunchId, launches, isLoadingLaunches]);
 
