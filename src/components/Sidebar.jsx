@@ -39,6 +39,7 @@ export default function Sidebar({ userProfile }) {
             { name: 'Clientes', href: '/Operacional/clientes' },
             { name: 'Importar Compradores', href: '/Operacional/importar-compradores' },
             { name: 'Gerador de Links', href: '/Operacional/gerador-links' },
+            { name: 'Grupos Whatsapp', href: '/Operacional/admin-robo' },
 
         ],
         FERRAMENTAS: [
