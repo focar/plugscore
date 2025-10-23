@@ -1,8 +1,8 @@
-// Arquivo: /src/app/(main)/Operacional/admin-robo/page.jsx (Versão Simplificada)
+// Arquivo: /src/app/(main)/Operacional/admin-robo/page.jsx (100% Completo)
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
-import AdminRoboClient from './AdminRoboClient'; // Importa nosso novo componente
+import AdminRoboClient from './AdminRoboClient'; // Importa nosso componente de cliente
 
 export default async function AdminRoboPage() {
     // A página do servidor agora só cuida da autenticação
@@ -12,6 +12,6 @@ export default async function AdminRoboPage() {
         redirect('/login');
     }
 
-    // Renderiza o componente de cliente, que cuidará do resto
+    // Renderiza o componente de cliente, que cuidará de toda a lógica e interface
     return <AdminRoboClient />;
 }

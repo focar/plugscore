@@ -57,7 +57,7 @@ export default function LoginPage() {
             <div className="w-full max-w-sm p-8 space-y-6 bg-slate-900 rounded-xl shadow-lg">
                 <div className="flex flex-col items-center text-center">
                     <Image
-                        src="https://qmnhgbdkgnbvfdxhbtst.supabase.co/storage/v1/object/public/img/logo_az1.png"
+                        src="https://qmnhgbdkgnbvfdxhbtst.supabase.co/storage/v1/object/public/img/logo_02.png"
                         alt="Logo"
                         width={80}
                         height={80}

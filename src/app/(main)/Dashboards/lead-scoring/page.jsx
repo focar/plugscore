@@ -1,14 +1,14 @@
 // /src/app/(main)/Dashboards/lead-scoring/page.jsx
 'use client';
 
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, Fragment } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AppContext } from '@/context/AppContext';
 import toast, { Toaster } from 'react-hot-toast';
-import { FaSpinner, FaFileCsv, FaFilter, FaUsers, FaUserCheck, FaGlobe, FaBullseye, FaPercent } from 'react-icons/fa';
+import { FaSpinner, FaFileCsv, FaFilter, FaUsers, FaUserCheck, FaGlobe, FaBullseye, FaPercent, FaChevronDown } from 'react-icons/fa';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 
-// --- Componentes de UI (sem alterações) ---
+// --- Componentes de UI ---
 const KpiCard = ({ title, value, icon: Icon }) => (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm flex items-center gap-4">
         <div className="bg-blue-100 dark:bg-gray-700 p-3 rounded-full">
@@ -20,13 +20,17 @@ const KpiCard = ({ title, value, icon: Icon }) => (
         </div>
     </div>
 );
+
+// *** CORREÇÃO AQUI ***
 const ScoreDistributionChart = ({ data }) => (
-    <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md">
+    <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md overflow-hidden">
         <h2 className="text-lg font-semibold text-slate-700 dark:text-gray-200 mb-4">Distribuição por Score (Filtro)</h2>
-        <div style={{ width: '100%', height: 350 }}>
-            <ResponsiveContainer>
+        {/* Div pai com altura responsiva */}
+        <div className="w-full h-80 md:h-[350px]">
+            <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                    <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={120} labelLine={false}>
+                    {/* Prop 'outerRadius' corrigida para usar porcentagem */}
+                    <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="90%" labelLine={false}>
                         {data.map((entry) => <Cell key={entry.name} fill={entry.fill} />)}
                     </Pie>
                     <Tooltip formatter={(value) => `${value.toLocaleString('pt-BR')} leads`} />
@@ -36,24 +40,46 @@ const ScoreDistributionChart = ({ data }) => (
         </div>
     </div>
 );
+
+// *** CORREÇÃO AQUI ***
 const DailyEvolutionChart = ({ data }) => (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md overflow-hidden">
         <h2 className="text-lg font-semibold text-slate-700 dark:text-gray-200 mb-4">Evolução Diária (Filtro)</h2>
-        <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="data" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="inscricoes" stroke="#8884d8" strokeWidth={2} name="Inscrições" />
-                <Line type="monotone" dataKey="checkins" stroke="#82ca9d" strokeWidth={2} name="Check-ins" />
-            </LineChart>
-        </ResponsiveContainer>
+        {/* Div pai com altura responsiva */}
+        <div className="w-full h-80 md:h-[350px]">
+            {/* ResponsiveContainer com 100% da altura do pai */}
+            <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="data" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="inscricoes" stroke="#8884d8" strokeWidth={2} name="Inscrições" />
+                    <Line type="monotone" dataKey="checkins" stroke="#82ca9d" strokeWidth={2} name="Check-ins" />
+                </LineChart>
+            </ResponsiveContainer>
+        </div>
     </div>
 );
+
+
+// Componente de Tabela (Acordeão) - Sem alterações
 const ScoringTable = ({ data, launchName }) => {
-    // ... (lógica de exportação sem alterações)
+    const [expandedRows, setExpandedRows] = useState(new Set());
+
+    const toggleRow = (key) => {
+        setExpandedRows(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(key)) {
+                newSet.delete(key);
+            } else {
+                newSet.add(key);
+            }
+            return newSet;
+        });
+    };
+
     const exportToCSV = () => {
         const headers = ["Canal", "Inscrições", "Check-ins", "Frio (<35)", "Morno-Frio", "Morno", "Quente-Morno", "Quente (>80)"];
         const csvRows = [
@@ -74,47 +100,103 @@ const ScoringTable = ({ data, launchName }) => {
         link.click();
         document.body.removeChild(link);
     };
+
     return (
         <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-md">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-slate-700 dark:text-gray-200">Scoring por Canal</h2>
                 <button onClick={exportToCSV} className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 transition-colors"><FaFileCsv /> Exportar</button>
             </div>
-            <div className="overflow-x-auto">
-                <table className="min-w-full">
-                    <thead className="bg-slate-50 dark:bg-gray-700">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-gray-300 uppercase">Canal</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-gray-300 uppercase">Inscrições</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-gray-300 uppercase">Check-ins</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-blue-800 uppercase">Frio (&lt;35)</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-blue-400 uppercase">Morno-Frio</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-yellow-500 uppercase">Morno</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-orange-500 uppercase">Quente-Morno</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-red-600 uppercase">Quente (&gt;80)</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-slate-200 dark:divide-gray-700">
-                        {(data || []).map((row, index) => (
-                            <tr key={row.canal + index}>
-                                <td className="p-3 md:px-4 md:py-4 font-medium text-slate-900 dark:text-gray-100 md:max-w-xs truncate" title={row.canal}>{row.canal}</td>
-                                <td className="p-3 md:px-4 md:py-4 text-center text-sm text-slate-600 dark:text-gray-300">{row.inscricoes}</td>
-                                <td className="p-3 md:px-4 md:py-4 text-center text-sm text-slate-600 dark:text-gray-300">{row.check_ins}</td>
-                                <td className="p-3 md:px-4 md:py-4 text-center text-sm text-blue-800">{row.frio_menos_35}</td>
-                                <td className="p-3 md:px-4 md:py-4 text-center text-sm text-blue-400">{row.morno_frio}</td>
-                                <td className="p-3 md:px-4 md:py-4 text-center text-sm text-yellow-500">{row.morno}</td>
-                                <td className="p-3 md:px-4 md:py-4 text-center text-sm text-orange-500">{row.quente_morno}</td>
-                                <td className="p-3 md:px-4 md:py-4 text-center text-sm text-red-600">{row.quente_mais_80}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+
+            {/* Cabeçalho Fixo (Visível apenas em Desktop) */}
+            <div className="hidden md:grid md:grid-cols-8 gap-4 px-4 py-2 mt-4 text-xs font-medium text-slate-500 dark:text-gray-300 uppercase border-b border-gray-200 dark:border-gray-700">
+                <span>Canal</span>
+                <span className="text-center">Inscrições</span>
+                <span className="text-center">Check-ins</span>
+                <span className="text-center text-blue-800">Frio (&lt;35)</span>
+                <span className="text-center text-blue-400">Morno-Frio</span>
+                <span className="text-center text-yellow-500">Morno</span>
+                <span className="text-center text-orange-500">Quente-Morno</span>
+                <span className="text-center text-red-600">Quente (&gt;80)</span>
+            </div>
+
+            {/* Lista de Cards Acordeão */}
+            <div className="space-y-2 md:mt-2">
+                {(data || []).map((row, index) => {
+                    const key = row.canal + index;
+                    const isExpanded = expandedRows.has(key);
+
+                    return (
+                    <div key={key} className="bg-slate-50 dark:bg-gray-700/50 rounded-lg shadow-sm">
+                        {/* Linha Clicável (Header do Card) */}
+                        <div onClick={() => toggleRow(key)} className="cursor-pointer p-4 grid grid-cols-3 md:grid-cols-8 gap-4 items-center">
+                            
+                            {/* Col 1: Canal */}
+                            <div className="font-medium text-slate-900 dark:text-gray-100 truncate" title={row.canal}>{row.canal}</div>
+
+                            {/* Col 2: Inscrições (Mobile) */}
+                            <div className="md:hidden text-center">
+                                <p className="text-xs text-slate-500 dark:text-gray-400">Inscrições</p>
+                                <p className="font-semibold text-slate-800 dark:text-gray-100">{row.inscricoes}</p>
+                            </div>
+
+                            {/* Col 3: Check-ins + Icon (Mobile) */}
+                            <div className="md:hidden text-center">
+                                <p className="text-xs text-slate-500 dark:text-gray-400">Check-ins</p>
+                                <div className="flex items-center justify-center gap-2">
+                                    <p className="font-semibold text-slate-800 dark:text-gray-100">{row.check_ins}</p>
+                                    <FaChevronDown className={`ml-1 text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} size={12} />
+                                </div>
+                            </div>
+                            
+                            {/* Colunas Desktop-Only (Dados de Score) */}
+                            <div className="hidden md:block text-center text-sm text-slate-600 dark:text-gray-300">{row.inscricoes}</div>
+                            <div className="hidden md:block text-center text-sm text-slate-600 dark:text-gray-300">{row.check_ins}</div>
+                            <div className="hidden md:block text-center text-sm text-blue-800">{row.frio_menos_35}</div>
+                            <div className="hidden md:block text-center text-sm text-blue-400">{row.morno_frio}</div>
+                            <div className="hidden md:block text-center text-sm text-yellow-500">{row.morno}</div>
+                            <div className="hidden md:block text-center text-sm text-orange-500">{row.quente_morno}</div>
+                            <div className="hidden md:block text-center text-sm text-red-600">{row.quente_mais_80}</div>
+                        </div>
+                        
+                        {/* Conteúdo Expandido (Visível apenas no Mobile) */}
+                        {isExpanded && (
+                            <div className="p-4 bg-slate-100 dark:bg-gray-700/20 border-t border-slate-200 dark:border-gray-600 md:hidden">
+                                <h4 className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-2">Distribuição de Score</h4>
+                                <div className="grid grid-cols-3 gap-3 text-center">
+                                    <div className="bg-white dark:bg-gray-700 p-2 rounded">
+                                        <p className="text-xs text-blue-800">Frio</p>
+                                        <p className="text-sm font-bold text-blue-800">{row.frio_menos_35}</p>
+                                    </div>
+                                    <div className="bg-white dark:bg-gray-700 p-2 rounded">
+                                        <p className="text-xs text-blue-400">Morno-Frio</p>
+                                        <p className="text-sm font-bold text-blue-400">{row.morno_frio}</p>
+                                    </div>
+                                    <div className="bg-white dark:bg-gray-700 p-2 rounded">
+                                        <p className="text-xs text-yellow-500">Morno</p>
+                                        <p className="text-sm font-bold text-yellow-500">{row.morno}</p>
+                                    </div>
+                                    <div className="bg-white dark:bg-gray-700 p-2 rounded">
+                                        <p className="text-xs text-orange-500">Qte-Morno</p>
+                                        <p className="text-sm font-bold text-orange-500">{row.quente_morno}</p>
+                                    </div>
+                                    <div className="bg-white dark:bg-gray-700 p-2 rounded">
+                                        <p className="text-xs text-red-600">Quente</p>
+                                        <p className="text-sm font-bold text-red-600">{row.quente_mais_80}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    )
+                })}
             </div>
         </div>
     );
 };
 
-// --- Componente Principal da Página ---
+
+// --- Componente Principal da Página (Lógica de dados sem alteração) ---
 export default function LeadScoringPage() {
     const supabase = createClientComponentClient();
     const { userProfile, selectedClientId, setHeaderContent } = useContext(AppContext);
@@ -129,7 +211,7 @@ export default function LeadScoringPage() {
     
     const [dashboardData, setDashboardData] = useState(null);
 
-    // ✅ CORREÇÃO: Unificamos os dois useEffects problemáticos em um só.
+    // Efeito para buscar Lançamentos e definir o Header (sem alteração)
     useEffect(() => {
         if (!userProfile) return;
 
@@ -151,22 +233,24 @@ export default function LeadScoringPage() {
             // Processa e define os lançamentos no estado
             const filtered = (data || []).filter(l => l.status !== 'Planejado');
             const sorted = [...filtered].sort((a, b) => {
-                if (a.status === 'Em andamento' && b.status !== 'Em andamento') return -1;
-                if (b.status === 'Em andamento' && a.status !== 'Em andamento') return 1;
+                // 'Em andamento' (com 'a' minúsculo)
+                if (a.status.toLowerCase() === 'em andamento' && b.status.toLowerCase() !== 'em andamento') return -1;
+                if (b.status.toLowerCase() === 'em andamento' && a.status.toLowerCase() !== 'em andamento') return 1;
                 return (a.codigo || a.nome).localeCompare(b.codigo || b.nome);
             });
             setLaunches(sorted);
             
             let currentLaunchId = '';
             if (sorted.length > 0) {
-                const inProgress = sorted.find(l => l.status === 'Em andamento');
+                 // 'Em andamento' (com 'a' minúsculo)
+                const inProgress = sorted.find(l => l.status.toLowerCase() === 'em andamento');
                 currentLaunchId = inProgress ? inProgress.id : sorted[0].id;
                 setSelectedLaunch(currentLaunchId);
             } else {
                 setSelectedLaunch('');
             }
 
-            // 2. Monta o seletor de lançamento (lógica do segundo useEffect)
+            // 2. Monta o seletor de lançamento
             const launchSelector = (
                 <select 
                     value={currentLaunchId} 
@@ -175,8 +259,8 @@ export default function LeadScoringPage() {
                     className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2"
                 >
                     {sorted.length > 0 ? 
-                     sorted.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
-                     <option>Nenhum lançamento</option>}
+                       sorted.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
+                       <option>Nenhum lançamento</option>}
                 </select>
             );
 
@@ -191,10 +275,10 @@ export default function LeadScoringPage() {
         // Limpeza do header ao sair da página
         return () => setHeaderContent({ title: '', controls: null });
         
-    }, [userProfile, selectedClientId, supabase, setHeaderContent]); // Dependências estáveis
+    }, [userProfile, selectedClientId, supabase, setHeaderContent]);
 
 
-    // Efeito para buscar todos os dados da dashboard de uma só vez
+    // Efeito para buscar todos os dados da dashboard de uma só vez (sem alteração)
     useEffect(() => {
         if (!selectedLaunch || !userProfile) return;
 
@@ -226,8 +310,8 @@ export default function LeadScoringPage() {
         fetchData();
     }, [selectedLaunch, filters, userProfile, selectedClientId, supabase]);
     
+    // Memoização dos dados (sem alteração)
     const { generalKpis, filteredKpis, scoreDistributionChartData, dailyEvolutionChartData, scoringTableData } = useMemo(() => {
-        // ... (lógica de memoização sem alterações)
         const data = dashboardData || {};
         const genKpis = data.general_kpis || { inscricoes: 0, checkins: 0 };
         const taxaCheckinGeral = genKpis.inscricoes > 0 ? (genKpis.checkins / genKpis.inscricoes) * 100 : 0;
@@ -251,7 +335,6 @@ export default function LeadScoringPage() {
     }, [dashboardData]);
 
     const handleFilterChange = (level, value) => {
-        // ... (lógica de filtros sem alterações)
         if (level === 'source') {
             setFilters({ source: value, medium: 'all', content: 'all' });
         } else if (level === 'medium') {
@@ -261,6 +344,7 @@ export default function LeadScoringPage() {
         }
     };
 
+    // --- JSX Principal (sem alteração de layout) ---
     return (
         <div className="space-y-6 p-4 md:p-6 bg-slate-50 dark:bg-gray-900 min-h-screen">
             <Toaster position="top-center" />

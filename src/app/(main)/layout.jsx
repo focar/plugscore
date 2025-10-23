@@ -1,3 +1,4 @@
+//src/app/(main)/layout.jsx
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';

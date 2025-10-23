@@ -1,14 +1,10 @@
-//F:\plugscore\src\components\Header.jsx
+//src/components/Header.jsx
 'use client';
 
 import { useContext, useEffect } from 'react';
 import { AppContext } from '@/context/AppContext';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-
-// Ícones (mantidos como no seu original)
-const SunIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>);
-const MoonIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>);
-const MenuIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>);
+import { Sun, Moon, Menu as MenuIcon } from 'lucide-react'; // Usando lucide para consistência
 
 export default function Header({ userProfile }) {
     const { 
@@ -19,88 +15,81 @@ export default function Header({ userProfile }) {
     } = useContext(AppContext);
     
     const supabase = createClientComponentClient();
-
-    // Extraímos o 'role' para usar como dependência estável
-    const userRole = userProfile?.role;
+    const userRole = userProfile?.role; // Extraído para estabilidade
 
     useEffect(() => {
         const fetchClients = async () => {
             if (userRole === 'admin') {
                 const { data: clientsData, error } = await supabase.from('clientes').select('id, nome, codigo').order('nome');
-                
-                if (error) {
-                    console.error('Erro ao buscar clientes:', error);
-                    setAllClients([]);
-                } else {
-                    setAllClients(clientsData || []);
-                }
-            } else {
-                setAllClients([]);
-            }
+                if (error) { console.error('Erro ao buscar clientes:', error); setAllClients([]); } 
+                else { setAllClients(clientsData || []); }
+            } else { setAllClients([]); }
         };
         fetchClients();
-    // ✅ --- AQUI ESTÁ A CORREÇÃO CRÍTICA --- ✅
-    // Trocamos `userProfile` por `userRole`. Agora o efeito só executa
-    // se o PERFIL do utilizador realmente mudar, e não a cada renderização.
     }, [userRole, setAllClients, supabase]); 
 
 
-    const toggleTheme = () => {
-        setTheme(theme === 'light' ? 'dark' : 'light');
-    };
-    
+    const toggleTheme = () => { setTheme(theme === 'light' ? 'dark' : 'light'); };
     const title = headerContent?.title || '';
     const controls = headerContent?.controls || null;
     
     return (
-        <header className="bg-white dark:bg-gray-800 shadow-sm z-10 p-4">
-            <div className="flex items-center justify-between h-full min-h-[40px] gap-4">
-                <div className="flex items-center gap-4">
+        <header className="bg-white dark:bg-gray-800 shadow-sm z-10 p-4 sticky top-0">
+            {/* O div principal usa flex-wrap para empilhar Título e Controles em telas pequenas */}
+            <div className="flex flex-wrap items-center justify-between gap-4 min-h-[40px]">
+                
+                {/* Grupo Esquerdo (Título) */}
+                <div className="flex items-center gap-2 flex-grow min-w-0"> 
                     <button 
                         className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 lg:hidden"
                         onClick={() => setIsMobileMenuOpen(true)}
                         aria-label="Abrir menu"
                     >
-                        <MenuIcon />
+                        <MenuIcon size={24} />
                     </button>
-                    <div className="flex-shrink-0">
-                        <h1 className="text-xl font-bold text-gray-800 dark:text-gray-200 truncate">
-                           {title}
-                        </h1>
-                    </div>
+                    <h1 className="text-lg md:text-xl font-semibold text-gray-800 dark:text-gray-100 truncate">
+                        {title}
+                    </h1>
                 </div>
 
-                <div className="flex-grow flex justify-center">
-                    {controls}
-                </div>
-                
-                <div className="flex-shrink-0 flex items-center gap-4">
+                {/* Grupo Direito (Controles) */}
+                {/* MUDANÇA: Adicionado w-full sm:w-auto. Faz o grupo ocupar a linha inteira no mobile, empilhando abaixo do título */}
+                <div className="flex items-center flex-wrap justify-end gap-2 sm:gap-4 flex-shrink-0 w-full sm:w-auto">
+                    
+                    {/* Controles (Dropdown de Lançamento) */}
+                    {/* MUDANÇA: w-full sm:w-auto para fazer o dropdown ocupar 100% no mobile */}
+                    <div className="flex-shrink-0 min-w-0 w-full sm:w-auto">{controls}</div>
+                    
+                    {/* Filtro de Cliente */}
                     {(userProfile?.role === 'admin' && allClients.length > 0) && (
-                        <div className="flex items-center gap-2">
+                        /* MUDANÇA: Adicionado w-full sm:w-auto ao wrapper */
+                        <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto">
                             <label htmlFor="client-filter" className="text-sm font-medium text-gray-500 dark:text-gray-400 hidden sm:block">Cliente:</label>
                             <select 
                                 id="client-filter"
                                 value={selectedClientId}
                                 onChange={(e) => setSelectedClientId(e.target.value)}
+                                /* MUDANÇA: Mudado w-auto para w-full para preencher o wrapper */
                                 className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2"
                             >
                                 <option value="all">Todos os Clientes</option>
-                                {allClients.map(client => (
-                                    <option key={client.id} value={client.id}>{client.nome}</option>
-                                ))}
+                                {allClients.map(client => ( <option key={client.id} value={client.id}>{client.nome}</option> ))}
                             </select>
                         </div>
                     )}
 
+                    {/* Botão de Tema */}
                     <button 
                         onClick={toggleTheme} 
-                        className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        /* MUDANÇA: ml-auto para empurrar para a direita */
+                        className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300 flex-shrink-0 ml-auto"
                         aria-label="Alterar tema"
                     >
-                        {theme === 'dark' ? <SunIcon className="text-yellow-400" /> : <MoonIcon className="text-gray-600" />}
+                        {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                     </button>
                 </div>
             </div>
         </header>
     );
 }
+

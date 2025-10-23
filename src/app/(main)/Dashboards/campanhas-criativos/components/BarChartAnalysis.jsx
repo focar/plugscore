@@ -1,3 +1,4 @@
+ // src\app\(main)\Dashboards\campanhas-criativos\components\BarChartAnalysis.jsx
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';

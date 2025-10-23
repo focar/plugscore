@@ -17,12 +17,11 @@ export default function Sidebar({ userProfile }) {
 
     const allMenuItems = {
         DASHBOARDS: [
-            { name: 'Traqueamento', href: '/Dashboards/traqueamento' },
-            { name: 'Analise de Criativos', href: '/Dashboards/recomendacao-criativos' },
+            { name: 'Traqueamento de Leads', href: '/Dashboards/traqueamento' },
+            { name: 'Analise de Criativos', href: '/Dashboards/analise-criativos' },
             { name: 'Criativos por Score', href: '/Dashboards/criativos-por-score' },
             { name: 'Análise de Campanha', href: '/Dashboards/analise-campanha' },
             { name: 'Otimizador de Campanha', href: '/Dashboards/otimizador-campanhas/' },
-
             { name: 'Campanhas e Criativos', href: '/Dashboards/campanhas-criativos' },
             { name: 'Resumo Diario', href: '/Dashboards/resumo-diario' },
             { name: 'Evolução de Canal', href: '/Dashboards/evolucao-de-canal' },
@@ -39,12 +38,12 @@ export default function Sidebar({ userProfile }) {
             { name: 'Clientes', href: '/Operacional/clientes' },
             { name: 'Importar Compradores', href: '/Operacional/importar-compradores' },
             { name: 'Gerador de Links', href: '/Operacional/gerador-links' },
-            { name: 'Grupos Whatsapp', href: '/Operacional/admin-robo' },
 
         ],
         FERRAMENTAS: [
             { name: 'Acerto respostas', href: '/Ferramentas/ferramentas-de-teste' },
             { name: 'Usuários', href: '/Ferramentas/utilizadores' },
+            { name: 'Grupos Whatsapp', href: '/Operacional/admin-robo' },
         ],
     };
     

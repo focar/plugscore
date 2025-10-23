@@ -1,28 +1,29 @@
 //src/app/(main)/Dashboards/origem-compradores/page.jsx
 'use client';
 
-import { useState, useEffect, useContext, useMemo } from "react";
+import { useState, useEffect, useContext, useMemo, Fragment } from "react";
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AppContext } from '@/context/AppContext';
-import { FaSpinner, FaUsers, FaUserCheck, FaShoppingCart, FaPercentage } from "react-icons/fa";
+import { FaSpinner, FaUsers, FaUserCheck, FaShoppingCart, FaPercentage, FaChevronDown } from "react-icons/fa";
 import { Toaster, toast } from 'react-hot-toast';
 
 // --- Componentes ---
 const Spinner = () => ( <div className="flex justify-center items-center h-40"><FaSpinner className="animate-spin text-blue-600 text-3xl mx-auto" /></div> );
 
 const KpiCard = ({ title, value, icon: Icon, colorClass = 'text-blue-500' }) => (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm flex items-center space-x-4">
+    <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow-sm flex items-center space-x-3 sm:space-x-4">
         <div className={`p-3 rounded-full bg-slate-100 dark:bg-gray-700 ${colorClass}`}>
             <Icon size={24} />
         </div>
         <div>
-            <p className="text-2xl font-bold text-slate-800 dark:text-gray-100">{value}</p>
+            <p className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-gray-100">{value}</p>
             <h3 className="text-sm font-medium text-slate-500 dark:text-gray-400">{title}</h3>
         </div>
     </div>
 );
 
 const PieChart = ({ data }) => {
+    // ... (Componente PieChart sem alterações)
     const total = data.reduce((sum, item) => sum + item.total, 0);
     const colors = {
         'Não Traqueado': 'bg-gray-400',
@@ -72,7 +73,20 @@ export default function OrigemCompradoresPage() {
     const [dashboardData, setDashboardData] = useState(null);
     const [isLoadingData, setIsLoadingData] = useState(true);
 
-    // Efeito para buscar os lançamentos disponíveis
+    const [expandedRows, setExpandedRows] = useState(new Set());
+    const toggleRow = (key) => {
+        setExpandedRows(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(key)) {
+                newSet.delete(key);
+            } else {
+                newSet.add(key);
+            }
+            return newSet;
+        });
+    };
+
+    // Efeitos de busca de dados (sem alteração)
     useEffect(() => {
         if (!userProfile) return;
         const fetchLaunches = async () => {
@@ -85,13 +99,13 @@ export default function OrigemCompradoresPage() {
                 setLaunches([]);
             } else {
                 const sorted = [...(data || [])].sort((a, b) => {
-                    if (a.status === 'Em andamento' && b.status !== 'Em andamento') return -1;
-                    if (b.status === 'Em andamento' && a.status !== 'Em andamento') return 1;
+                    if (a.status.toLowerCase() === 'em andamento' && b.status.toLowerCase() !== 'em andamento') return -1;
+                    if (b.status.toLowerCase() === 'em andamento' && a.status.toLowerCase() !== 'em andamento') return 1;
                     return (a.codigo || a.nome).localeCompare(b.codigo || b.nome);
                 });
                 setLaunches(sorted);
                 if (sorted.length > 0) {
-                    const inProgress = sorted.find(l => l.status === 'Em andamento');
+                    const inProgress = sorted.find(l => l.status.toLowerCase() === 'em andamento');
                     setSelectedLaunch(inProgress ? inProgress.id : sorted[0].id);
                 }
             }
@@ -100,8 +114,6 @@ export default function OrigemCompradoresPage() {
         fetchLaunches();
     }, [userProfile, selectedClientId, supabase]);
 
-
-    // Efeito para criar o menu de seleção de lançamento no header
     useEffect(() => {
         const launchSelector = (
             <select
@@ -121,11 +133,8 @@ export default function OrigemCompradoresPage() {
         return () => setHeaderContent({ title: '', controls: null });
     }, [setHeaderContent, selectedLaunch, launches, isLoadingLaunches]);
 
-
-    // Efeito para buscar os dados da dashboard
     useEffect(() => {
         if (!selectedLaunch || !userProfile) {
-            // Se não houver lançamento, para de carregar e mostra a tela vazia.
              if (!isLoadingLaunches) setIsLoadingData(false);
             return;
         }
@@ -176,33 +185,79 @@ export default function OrigemCompradoresPage() {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
+                        
+                        <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-4 md:p-6 rounded-lg shadow-sm">
                             <h3 className="font-bold text-slate-800 dark:text-gray-100 mb-4">Performance por Canal</h3>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                                        <tr>
-                                            <th scope="col" className="px-6 py-3">Canal</th>
-                                            <th scope="col" className="px-6 py-3 text-right">Inscrições</th>
-                                            <th scope="col" className="px-6 py-3 text-right">Check-ins</th>
-                                            <th scope="col" className="px-6 py-3 text-right">Compradores</th>
-                                            <th scope="col" className="px-6 py-3 text-right">Conv. Final (%)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {tabelaCanais.map((canal, index) => (
-                                            <tr key={index} className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                                <td className="px-6 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">{canal.canal}</td>
-                                                <td className="px-6 py-4 text-right">{canal.inscricoes.toLocaleString('pt-BR')}</td>
-                                                <td className="px-6 py-4 text-right">{canal.checkins.toLocaleString('pt-BR')}</td>
-                                                <td className="px-6 py-4 text-right font-bold text-emerald-500">{canal.compradores.toLocaleString('pt-BR')}</td>
-                                                <td className="px-6 py-4 text-right font-bold text-emerald-500">{canal.taxa_conversao_checkin.toFixed(2)}%</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            
+                            {/* Cabeçalho Desktop */}
+                            <div className="hidden lg:grid grid-cols-5 gap-4 px-4 py-2 mt-4 text-xs font-medium text-slate-500 dark:text-gray-300 uppercase border-b border-gray-200 dark:border-gray-700">
+                                <span>Canal</span>
+                                <span className="text-right">Inscrições</span>
+                                <span className="text-right">Check-ins</span>
+                                <span className="text-right">Compradores</span>
+                                <span className="text-right">Conv. Final (%)</span>
+                            </div>
+
+                            <div className="space-y-2 md:mt-2">
+                                {tabelaCanais.map((canal, index) => {
+                                    const key = canal.canal + index;
+                                    const isExpanded = expandedRows.has(key);
+                                    return (
+                                    <div key={key} className="bg-slate-50 dark:bg-gray-700/50 rounded-lg shadow-sm">
+                                        
+                                        <div onClick={() => toggleRow(key)} className="cursor-pointer p-4 lg:grid lg:grid-cols-5 lg:gap-x-4 lg:items-center">
+                                            
+                                            {/* Layout Mobile (Flex column) */}
+                                            <div className="lg:hidden flex flex-col">
+                                                {/* Linha 1: Nome do Canal */}
+                                                <div className="font-medium text-gray-900 dark:text-white whitespace-nowrap truncate" title={canal.canal}>{canal.canal}</div>
+                                                
+                                                <div className="grid grid-cols-2 mt-2">
+                                                    {/* Bloco Inscrições (Esquerda) */}
+                                                    <div className="text-left">
+                                                        <p className="text-xs text-slate-500 dark:text-gray-400">Inscrições</p>
+                                                        <p className="font-semibold text-slate-800 dark:text-gray-100">{canal.inscricoes.toLocaleString('pt-BR')}</p>
+                                                    </div>
+                                                    {/* *** CORREÇÃO: Removido 'text-right' *** */}
+                                                    <div className="text-left">
+                                                        <p className="text-xs text-emerald-500">Compradores</p>
+                                                        <div>
+                                                            <p className="font-semibold text-emerald-500 inline-block">{canal.compradores.toLocaleString('pt-BR')}</p>
+                                                            <FaChevronDown className={`ml-2 text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'} inline-block align-middle`} size={12} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {/* *** FIM DA CORREÇÃO *** */}
+
+                                            {/* Layout Desktop (Grid items) */}
+                                            <div className="hidden lg:block lg:col-span-1 font-medium text-gray-900 dark:text-white whitespace-nowrap truncate" title={canal.canal}>{canal.canal}</div>
+                                            <div className="hidden lg:block text-right text-sm text-slate-600 dark:text-gray-300">{canal.inscricoes.toLocaleString('pt-BR')}</div>
+                                            <div className="hidden lg:block text-right text-sm text-slate-600 dark:text-gray-300">{canal.checkins.toLocaleString('pt-BR')}</div>
+                                            <div className="hidden lg:block text-right text-sm font-bold text-emerald-500">{canal.compradores.toLocaleString('pt-BR')}</div>
+                                            <div className="hidden lg:block text-right text-sm font-bold text-emerald-500">{canal.taxa_conversao_checkin.toFixed(2)}%</div>
+                                        </div>
+                                        
+                                        {isExpanded && (
+                                            <div className="p-4 bg-slate-100 dark:bg-gray-700/20 border-t border-slate-200 dark:border-gray-600 lg:hidden">
+                                                <div className="grid grid-cols-2 gap-3 text-center">
+                                                    <div className="bg-white dark:bg-gray-700 p-2 rounded">
+                                                        <p className="text-sm text-slate-500 dark:text-gray-400">Check-ins</p>
+                                                        <p className="text-lg font-semibold text-slate-800 dark:text-gray-100">{canal.checkins.toLocaleString('pt-BR')}</p>
+                                                    </div>
+                                                    <div className="bg-white dark:bg-gray-700 p-2 rounded">
+                                                        <p className="text-sm text-emerald-500">Conv. Final</p>
+                                                        <p className="text-lg font-semibold text-emerald-500">{canal.taxa_conversao_checkin.toFixed(2)}%</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    )
+                                })}
                             </div>
                         </div>
+                        
                         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm">
                             <h3 className="font-bold text-slate-800 dark:text-gray-100 mb-4">Origem dos Compradores</h3>
                             <PieChart data={graficoOrigem} />

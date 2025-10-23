@@ -1,12 +1,13 @@
-// Arquivo: /src/app/(main)/Operacional/admin-robo/AdminRoboClient.jsx
+// Arquivo: /src/app/(main)/Operacional/admin-robo/AdminRoboClient.jsx (100% Completo)
 'use client';
 
 import { useState, useEffect, useContext, useTransition, useRef } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { FaTrash, FaPlus, FaSpinner, FaSync } from 'react-icons/fa';
+import { FaTrash, FaPlus, FaSpinner, FaSync, FaDownload } from 'react-icons/fa';
 import { AppContext } from '@/context/AppContext';
 import { addGroupAction, deleteGroupAction, importGroupMembersAction } from './actions';
 import toast, { Toaster } from 'react-hot-toast';
+import { unparse } from 'papaparse';
 
 // --- Componente do Modal de Confirmação ---
 const ConfirmationModal = ({ groupName, onConfirm, onCancel, isPending }) => {
@@ -19,18 +20,10 @@ const ConfirmationModal = ({ groupName, onConfirm, onCancel, isPending }) => {
                     Esta ação pode levar alguns minutos e irá consumir recursos do servidor.
                 </p>
                 <div className="flex justify-end gap-4">
-                    <button 
-                        onClick={onCancel} 
-                        disabled={isPending}
-                        className="px-6 py-2 bg-gray-600 text-white font-semibold rounded-md hover:bg-gray-500 disabled:opacity-50"
-                    >
+                    <button onClick={onCancel} disabled={isPending} className="px-6 py-2 bg-gray-600 text-white font-semibold rounded-md hover:bg-gray-500 disabled:opacity-50">
                         Cancelar
                     </button>
-                    <button 
-                        onClick={onConfirm} 
-                        disabled={isPending}
-                        className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:opacity-50 inline-flex items-center"
-                    >
+                    <button onClick={onConfirm} disabled={isPending} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:opacity-50 inline-flex items-center">
                         {isPending && <FaSpinner className="animate-spin mr-2" />}
                         Confirmar
                     </button>
@@ -44,11 +37,10 @@ export default function AdminRoboClient() {
     const { setHeaderContent, selectedClientId } = useContext(AppContext);
     const [groups, setGroups] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isExporting, setIsExporting] = useState(false);
     const supabase = createClientComponentClient();
     const formRef = useRef(null);
     const [isPending, startTransition] = useTransition();
-
-    // Estados para o modal de confirmação
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [groupToImport, setGroupToImport] = useState(null);
 
@@ -101,6 +93,53 @@ export default function AdminRoboClient() {
         setGroupToImport(group);
         setShowConfirmModal(true);
     };
+
+    const handleExportCSV = async () => {
+        if (!selectedClientId || selectedClientId === 'all') {
+            toast.error("Por favor, selecione um cliente específico para exportar os dados.");
+            return;
+        }
+        setIsExporting(true);
+        toast.loading('Buscando dados para exportação...');
+        try {
+            const { data: entradas, error } = await supabase
+                .from('entradas_grupo')
+                .select('telefone, created_at, processado')
+                .eq('client_id', selectedClientId)
+                .order('created_at', { ascending: false });
+            
+            toast.dismiss(); // Fecha o toast de carregamento ANTES de processar
+            
+            if (error) {
+                console.error("Supabase error fetching entradas_grupo:", error); // Log específico
+                throw new Error(`Erro do Supabase: ${error.message}`);
+            }
+
+            if (!entradas || entradas.length === 0) {
+                toast.error('Nenhum dado de entrada encontrado para este cliente.');
+                setIsExporting(false); 
+                return;
+            }
+
+            const csvData = unparse(entradas, { header: true, quotes: true });
+            const blob = new Blob([`\uFEFF${csvData}`], { type: 'text/csv;charset=utf-8;' }); // Adiciona BOM para Excel
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `entradas_grupo_${selectedClientId}_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success(`${entradas.length} registros exportados com sucesso!`);
+        } catch (error) {
+            toast.dismiss();
+            console.error("Erro ao exportar CSV:", error);
+            toast.error(`Falha na exportação: ${error.message}`);
+        } finally {
+            setIsExporting(false);
+        }
+    };
     
     return (
         <div className="space-y-8">
@@ -119,7 +158,19 @@ export default function AdminRoboClient() {
                 />
             )}
 
-            <h1 className="text-3xl font-bold text-gray-100">Administração do Robô Monitor</h1>
+            <div className="flex items-center justify-between">
+                <h1 className="text-3xl font-bold text-gray-100">Administração do Robô Monitor</h1>
+                <button 
+                    onClick={handleExportCSV}
+                    disabled={isExporting || selectedClientId === 'all'}
+                    className="inline-flex items-center justify-center px-5 py-2 bg-emerald-600 text-white font-semibold rounded-md hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={selectedClientId === 'all' ? "Selecione um cliente para exportar" : "Exportar dados de entrada para CSV"}
+                >
+                    {isExporting ? <FaSpinner className="animate-spin mr-2" /> : <FaDownload className="mr-2" />}
+                    Exportar Entradas (CSV)
+                </button>
+            </div>
+
             <div className="bg-slate-900 p-6 rounded-lg shadow-md">
                 <h2 className="text-xl font-semibold text-gray-200 mb-4">Grupos Monitorados</h2>
                 <p className="text-sm text-gray-400 mb-6">Esta é a lista de grupos que o robô está vigiando. Adicione ou remova nomes de grupos para controlar o monitoramento em tempo real.</p>
@@ -171,13 +222,14 @@ export default function AdminRoboClient() {
                                         </td>
                                     </tr>
                                 ))
-                            ) : (
-                                <tr><td colSpan="2" className="text-center py-10 text-gray-500">{selectedClientId === 'all' ? "Selecione um cliente para ver os grupos." : "Nenhum grupo configurado para este cliente."}</td></tr>
+                            ) : ( 
+                                <tr><td colSpan="2" className="text-center py-10 text-gray-500">{selectedClientId === 'all' ? "Selecione um cliente para ver os grupos." : "Nenhum grupo configurado para este cliente."}</td></tr> 
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
+            {/* O bloco de Entradas Registradas foi removido, pois o botão foi movido para o topo */}
         </div>
     );
 }

@@ -1,3 +1,4 @@
+// src\app\(main)\Dashboards\perfil-de-mql\page.jsx
 'use client';
 
 import { useState, useEffect, useCallback, useContext, useMemo } from "react";
@@ -86,13 +87,13 @@ export default function AnaliseMqlPage() {
                 setLaunches([]);
             } else {
                 const sorted = [...(data || [])].sort((a, b) => {
-                    if (a.status === 'Em andamento' && b.status !== 'Em andamento') return -1;
-                    if (b.status === 'Em andamento' && a.status !== 'Em andamento') return 1;
+                    if (a.status.toLowerCase() === 'em andamento' && b.status.toLowerCase() !== 'em andamento') return -1;
+                    if (b.status.toLowerCase() === 'em andamento' && a.status.toLowerCase() !== 'em andamento') return 1;
                     return (a.codigo || a.nome).localeCompare(b.codigo || b.nome);
                 });
                 setLaunches(sorted);
                 if (sorted.length > 0) {
-                    const inProgress = sorted.find(l => l.status === 'Em andamento');
+                    const inProgress = sorted.find(l => l.status.toLowerCase() === 'em andamento');
                     setSelectedLaunch(inProgress ? inProgress.id : sorted[0].id);
                 } else {
                     setSelectedLaunch('');
@@ -189,6 +190,7 @@ export default function AnaliseMqlPage() {
             <Toaster position="top-center" />
             
             <section className="space-y-6">
+                {/* --- KPIs Gerais (Layout já responsivo) --- */}
                 <div className="bg-gray-100 dark:bg-gray-800/50 p-4 rounded-lg shadow-sm">
                     <h3 className="font-bold text-center text-slate-600 dark:text-gray-300 mb-3">Totais do Lançamento</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -198,17 +200,24 @@ export default function AnaliseMqlPage() {
                     </div>
                 </div>
 
+                {/* --- KPIs de MQL (Cards A, B, C, D) --- */}
                 <div className="bg-gray-100 dark:bg-gray-800/50 p-4 rounded-lg shadow-sm">
                     <div className="flex flex-col md:flex-row gap-4">
+                        {/* --- MUDANÇA: O grid 'grid-cols-2' está correto para mobile. O problema são as fontes. --- */}
                         <div className="flex-grow grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
                           {mqlCategories.map(cat => {
                                 const totalLeadsCategoria = mqlKpiData?.[cat.key] ?? 0;
                                 const percentage = generalKpis.total_checkins > 0 ? (totalLeadsCategoria / generalKpis.total_checkins) * 100 : 0;
                                 return (
-                                    <button key={cat.key} onClick={() => setSelectedMql(cat.key)} className={`p-4 rounded-lg shadow-sm transition-all duration-200 border-2 flex items-center gap-4 ${ selectedMql === cat.key ? `${cat.bgColor} ${cat.borderColor}` : 'bg-white dark:bg-gray-800 border-transparent hover:border-slate-300 dark:hover:border-gray-600' }`} >
-                                        <span className={`text-7xl font-black ${cat.color} -mt-2`}>{cat.letter}</span>
+                                    // *** MUDANÇA: Padding (p-3) e gap (gap-2) reduzidos no mobile ***
+                                    <button key={cat.key} onClick={() => setSelectedMql(cat.key)} className={`p-3 md:p-4 rounded-lg shadow-sm transition-all duration-200 border-2 flex items-center gap-2 md:gap-4 ${ selectedMql === cat.key ? `${cat.bgColor} ${cat.borderColor}` : 'bg-white dark:bg-gray-800 border-transparent hover:border-slate-300 dark:hover:border-gray-600' }`} >
+                                        
+                                        {/* *** MUDANÇA: Tamanho da fonte reduzido no mobile (text-6xl) e mantido no desktop (md:text-7xl) *** */}
+                                        <span className={`text-6xl md:text-7xl font-black ${cat.color} -mt-2`}>{cat.letter}</span>
+                                        
                                         <div className="flex flex-col items-start text-left">
-                                            <p className={`text-4xl font-bold text-slate-800 dark:text-gray-100`}>{isLoadingData ? '...' : totalLeadsCategoria.toLocaleString('pt-BR')}</p>
+                                            {/* *** MUDANÇA: Tamanho da fonte reduzido no mobile (text-3xl) e mantido no desktop (md:text-4xl) *** */}
+                                            <p className={`text-3xl md:text-4xl font-bold text-slate-800 dark:text-gray-100`}>{isLoadingData ? '...' : totalLeadsCategoria.toLocaleString('pt-BR')}</p>
                                             <p className="text-sm text-slate-500 dark:text-gray-400">{cat.name}</p>
                                             <p className="text-base font-bold text-slate-700 dark:text-gray-200 mt-1">({percentage.toFixed(1)}%)</p>
                                         </div>
@@ -216,6 +225,8 @@ export default function AnaliseMqlPage() {
                                 );
                             })}
                         </div>
+                        
+                        {/* --- Botão Exportar (Layout já responsivo) --- */}
                         <div className="flex-shrink-0">
                             <button onClick={handleExport} disabled={isExporting || isLoadingData} className="w-full h-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 text-base">
                                 {isExporting ? <FaSpinner className="animate-spin" /> : <FaFileCsv />}
@@ -225,9 +236,11 @@ export default function AnaliseMqlPage() {
                     </div>
                 </div>
             </section>
+            
             <main>
                 {isLoadingData ? <Spinner /> : (
                     breakdownData && breakdownData.length > 0 ? (
+                        // --- Cards de Resposta (Layout já responsivo) ---
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {breakdownData.map(question => (
                                 <AnswerBreakdownCard key={question.question_id} questionData={question} />
@@ -244,4 +257,3 @@ export default function AnaliseMqlPage() {
         </div>
     );
 }
-

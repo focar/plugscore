@@ -1,3 +1,4 @@
+// src\app\(main)\Dashboards\campanhas-criativos\page.jsx
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useContext } from 'react';
@@ -7,11 +8,11 @@ import toast, { Toaster } from 'react-hot-toast';
 import { Users, UserCheck, Percent } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import useMobileCheck from '@/hooks/useMobileCheck';
-import BarChartAnalysis from './components/BarChartAnalysis'; 
 import ExpandableSourcesTable from './components/ExpandableSourcesTable';
 
 const TRAFFIC_TYPES = ['Todos', 'Pago', 'Orgânico', 'Não Traqueado'];
 
+// --- Componentes (KpiCard, Spinner) sem alterações ---
 const KpiCard = ({ title, value, icon: Icon }) => (
     <div className="bg-gray-800 p-4 rounded-lg shadow-sm text-center flex flex-col justify-center">
         <Icon className="mx-auto text-blue-400 mb-2" size={24} />
@@ -20,6 +21,7 @@ const KpiCard = ({ title, value, icon: Icon }) => (
     </div>
 );
 const Spinner = () => <div className="flex justify-center items-center h-40"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div></div>;
+
 
 export default function CampanhasCriativosPage() {
     const supabase = createClientComponentClient();
@@ -31,11 +33,11 @@ export default function CampanhasCriativosPage() {
     const [isLoadingLaunches, setIsLoadingLaunches] = useState(true);
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [flatData, setFlatData] = useState([]);
-    const [activeView, setActiveView] = useState('masterDetail'); // Inicia na visão Mestre-Detalhe
     const [masterSelectedCampaign, setMasterSelectedCampaign] = useState(null);
     const [trafficTypeFilter, setTrafficTypeFilter] = useState('Todos');
 
-    useEffect(() => { if (!userProfile) return; setIsLoadingLaunches(true); const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id; supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend }).then(({ data, error }) => { if (error) throw error; const sorted = [...(data || [])].sort((a, b) => (a.codigo || a.nome).localeCompare(b.codigo || b.nome)); setLaunches(sorted); if (sorted.length > 0) { const inProgress = sorted.find(l => l.status === 'Em andamento'); setSelectedLaunch(inProgress ? inProgress.id : sorted[0].id); } else { setIsLoadingData(false); } }).catch(err => toast.error("Erro ao buscar lançamentos.")).finally(() => setIsLoadingLaunches(false)); }, [userProfile, selectedClientId, supabase]);
+    // Efeitos de busca de dados (sem alterações)
+    useEffect(() => { if (!userProfile) return; setIsLoadingLaunches(true); const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id; supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend }).then(({ data, error }) => { if (error) throw error; const sorted = [...(data || [])].sort((a, b) => (a.codigo || a.nome).localeCompare(b.codigo || b.nome)); setLaunches(sorted); if (sorted.length > 0) { const inProgress = sorted.find(l => l.status.toLowerCase() === 'em andamento'); setSelectedLaunch(inProgress ? inProgress.id : sorted[0].id); } else { setIsLoadingData(false); } }).catch(err => toast.error("Erro ao buscar lançamentos.")).finally(() => setIsLoadingLaunches(false)); }, [userProfile, selectedClientId, supabase]);
     useEffect(() => { const launchSelector = ( <select value={selectedLaunch} onChange={e => { setSelectedLaunch(e.target.value); setMasterSelectedCampaign(null); }} disabled={isLoadingLaunches || launches.length === 0} className="bg-gray-800 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2.5"> {isLoadingLaunches ? <option>Carregando...</option> : launches.length > 0 ? launches.map(l => <option key={l.id} value={l.id}>{l.codigo} ({l.status})</option>) : <option>Nenhum lançamento</option>} </select> ); setHeaderContent({ title: 'Análise de Campanhas e Criativos', controls: launchSelector }); return () => setHeaderContent({ title: '', controls: null }); }, [setHeaderContent, selectedLaunch, launches, isLoadingLaunches]);
     const fetchData = useCallback(async () => { if (!selectedLaunch || !userProfile) return; setIsLoadingData(true); setMasterSelectedCampaign(null); try { const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id; const { data, error } = await supabase.rpc('get_utm_performance_flat', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }); if (error) throw error; setFlatData(data || []); } catch (err) { toast.error(`Erro ao carregar dados: ${err.message}`); } finally { setIsLoadingData(false); } }, [selectedLaunch, supabase, userProfile, selectedClientId]);
     useEffect(() => { fetchData(); }, [fetchData]);
@@ -56,25 +58,9 @@ export default function CampanhasCriativosPage() {
         return { generalKpis: calculateKpis(flatData), selectionKpis: calculateKpis(filteredData) };
     }, [flatData, filteredData]);
     
-    // ---- COMPONENTE DAS ABAS ATUALIZADO ----
-    const ViewTabs = () => (
-        <div className="flex border-b border-gray-700 mb-4">
-            <button 
-                onClick={() => setActiveView('masterDetail')} 
-                className={`px-4 py-2 text-sm font-medium ${activeView === 'masterDetail' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-                Visão Mestre-Detalhe
-            </button>
-            <button 
-                onClick={() => setActiveView('bars')} 
-                className={`px-4 py-2 text-sm font-medium ${activeView === 'bars' ? 'border-b-2 border-blue-500 text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-                Visão por Etapas
-            </button>
-        </div>
-    );
-    
+    // ---- Componente MasterDetailView ----
     const MasterDetailView = () => {
+        // Lógica interna (sem alterações)
         const campaignChartData = useMemo(() => { const groupedData = new Map(); filteredData.forEach(item => { const key = item.utm_campaign; if (!groupedData.has(key)) { groupedData.set(key, { name: key, checkins: 0 }); } groupedData.get(key).checkins += item.checkins; }); return Array.from(groupedData.values()).sort((a,b) => b.checkins - a.checkins); }, [filteredData]);
         const handleBarClick = (barData) => { if (!barData) return; const clickedName = barData.name; setMasterSelectedCampaign(prev => prev === clickedName ? null : clickedName); };
         const campaignDetailData = useMemo(() => { if (!masterSelectedCampaign) return []; return filteredData.filter(item => item.utm_campaign === masterSelectedCampaign); }, [filteredData, masterSelectedCampaign]);
@@ -82,12 +68,12 @@ export default function CampanhasCriativosPage() {
         const ClickableBar = (props) => { const { x, y, width, height, payload } = props; const isSelected = masterSelectedCampaign === payload.name; const fill = isSelected ? '#60A5FA' : '#3B82F6'; return <rect x={x} y={y} width={width} height={height} fill={fill} onClick={() => handleBarClick(payload)} style={{ cursor: 'pointer' }} />; };
 
         return (
-            <div className="space-y-6">
-                <div className="p-4 rounded-lg shadow-md bg-gray-900/50">
+            <div className="space-y-6 w-full">
+                <div className="p-4 rounded-lg shadow-md bg-gray-900/50 overflow-hidden">
                     <h3 className="text-lg font-semibold text-gray-200 mb-4">Performance por Campanha (Mestre)</h3>
                     <div className="h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={campaignChartData} margin={{ top: 10, right: 10, bottom: isMobile ? 100 : 80, left: isMobile ? -20 : 20 }}>
+                            <BarChart data={campaignChartData} margin={{ top: 10, right: 10, bottom: isMobile ? 100 : 80, left: isMobile ? 0 : 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#4B5563" />
                                 <XAxis dataKey="name" angle={isMobile ? -65 : -45} textAnchor="end" height={isMobile ? 90: 70} interval={0} stroke="#9CA3AF" tick={{ fontSize: 10 }} />
                                 <YAxis stroke="#9CA3AF" tick={{ fontSize: 10 }} />
@@ -101,7 +87,7 @@ export default function CampanhasCriativosPage() {
                     <div className="p-4 rounded-lg shadow-md bg-gray-900/50">
                         <h3 className="text-lg font-semibold text-gray-200 mb-4">Detalhes da Campanha: <span className="text-blue-400">{masterSelectedCampaign}</span></h3>
                         <div className="overflow-x-auto">
-                           <ExpandableSourcesTable data={campaignDetailData} totalKpis={generalKpis} />
+                           <ExpandableSourcesTable data={campaignDetailData} totalKpis={selectionKpis} />
                         </div>
                     </div>
                 )}
@@ -109,25 +95,28 @@ export default function CampanhasCriativosPage() {
         )
     };
 
+    // *** CORREÇÃO: Mantido overflow-hidden no container principal ***
     return (
-        <div className="space-y-4 p-2 md:p-3">
+        <div className="space-y-4 p-2 md:p-3 overflow-hidden">
             <Toaster position="top-center" />
-            <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* KPIs Gerais e de Seleção */}
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 w-full">
                 <div className="bg-gray-900/50 p-4 rounded-lg"><h3 className="font-bold text-center text-gray-300 mb-3">Totais do Lançamento</h3><div className="grid grid-cols-1 sm:grid-cols-3 gap-4"><KpiCard title="Inscrições" value={generalKpis.inscricoes.toLocaleString('pt-BR')} icon={Users} /><KpiCard title="Check-ins" value={generalKpis.checkins.toLocaleString('pt-BR')} icon={UserCheck} /><KpiCard title="Taxa de Check-in" value={generalKpis.taxaCheckin} icon={Percent} /></div></div>
                 <div className="bg-gray-900/50 p-4 rounded-lg"><h3 className="font-bold text-center text-gray-300 mb-3">Totais da Seleção ({trafficTypeFilter})</h3><div className="grid grid-cols-1 sm:grid-cols-3 gap-4"><KpiCard title="Inscrições" value={selectionKpis.inscricoes.toLocaleString('pt-BR')} icon={Users} /><KpiCard title="Check-ins" value={selectionKpis.checkins.toLocaleString('pt-BR')} icon={UserCheck} /><KpiCard title="Taxa de Check-in" value={selectionKpis.taxaCheckin} icon={Percent} /></div></div>
             </section>
-            <div className="bg-gray-800 p-1.5 rounded-lg shadow-md flex items-center justify-center space-x-1 max-w-md mx-auto">
-                {TRAFFIC_TYPES.map(type => ( <button key={type} onClick={() => { setTrafficTypeFilter(type); setMasterSelectedCampaign(null); }} className={`w-full px-4 py-2 text-sm font-semibold rounded-md transition-colors ${trafficTypeFilter === type ? 'bg-blue-600 text-white shadow' : 'text-gray-300 hover:bg-gray-700'}`}> {type} </button> ))}
+            
+            {/* Filtro de Tráfego com scroll horizontal */}
+            <div className="w-full bg-gray-800 p-1.5 rounded-lg shadow-md flex items-center space-x-1 overflow-x-auto whitespace-nowrap">
+                {TRAFFIC_TYPES.map(type => ( <button key={type} onClick={() => { setTrafficTypeFilter(type); setMasterSelectedCampaign(null); }} className={`flex-shrink-0 px-4 py-2 text-sm font-semibold rounded-md transition-colors ${trafficTypeFilter === type ? 'bg-blue-600 text-white shadow' : 'text-gray-300 hover:bg-gray-700'}`}> {type} </button> ))}
             </div>
+            
+            {/* Conteúdo Principal */}
             <div className="bg-gray-800 p-2 md:p-4 rounded-lg shadow-md">
-                <ViewTabs />
                 {isLoadingData ? <Spinner /> : filteredData.length === 0 ? (
                     <div className="text-center py-10 text-gray-400">Nenhum dado encontrado para o filtro selecionado.</div>
                 ) : (
                     <div>
-                        {activeView === 'bars' && <BarChartAnalysis data={filteredData} totalKpis={selectionKpis} />}
-                        {activeView === 'masterDetail' && <MasterDetailView />}
-                        {/* O código do Treemap foi removido daqui */}
+                        <MasterDetailView />
                     </div>
                 )}
             </div>
