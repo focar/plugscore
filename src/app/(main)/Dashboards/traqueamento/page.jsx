@@ -16,12 +16,14 @@ const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: fals
 const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
 const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false });
 
+// *** CORREÇÃO: Reduzido tamanho da fonte do valor principal ***
 const KpiCard = ({ title, value, percentage, icon: Icon }) => (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md h-full">
         <div className="flex items-center justify-between">
             <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">{title}</p>
-                <p className="text-4xl font-bold text-gray-800 dark:text-gray-100 mt-1">{value}</p>
+                {/* Alterado de text-4xl para text-3xl */}
+                <p className="text-3xl font-bold text-gray-800 dark:text-gray-100 mt-1">{value}</p>
                 {percentage && <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mt-1">{percentage}</p>}
             </div>
             <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-full">
@@ -30,8 +32,10 @@ const KpiCard = ({ title, value, percentage, icon: Icon }) => (
         </div>
     </div>
 );
+// *** FIM DA CORREÇÃO ***
 
 const TrafficCard = ({ title, leads, checkins, icon: Icon, onClick, rateColor, totalLeads }) => {
+    // ... (Componente TrafficCard sem alterações)
     const leadPercentage = totalLeads > 0 ? ((leads / totalLeads) * 100).toFixed(1) : '0.0';
     return (
         <button onClick={onClick} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-300 p-6 rounded-lg shadow-md text-left w-full group">
@@ -61,6 +65,7 @@ export default function TraqueamentoPage() {
     const supabase = createClientComponentClient();
     const { setHeaderContent, userProfile, selectedClientId } = useContext(AppContext);
 
+    // ... (Estados e useEffects sem alterações)
     const [launches, setLaunches] = useState([]);
     const [selectedLaunchId, setSelectedLaunchId] = useState('');
     const [kpis, setKpis] = useState(null);
@@ -82,7 +87,7 @@ export default function TraqueamentoPage() {
                 const sorted = [...data].sort((a, b) => (a.codigo || a.nome).localeCompare(b.codigo || b.nome));
                 setLaunches(sorted);
                 if (sorted.length > 0) {
-                    const inProgress = sorted.find(l => l.status === 'Em andamento');
+                    const inProgress = sorted.find(l => l.status.toLowerCase() === 'em andamento'); // Consistent casing
                     setSelectedLaunchId(inProgress ? inProgress.id : sorted[0].id);
                 } else {
                     setIsLoading(false);
@@ -141,6 +146,7 @@ export default function TraqueamentoPage() {
 
 
     const chartData = useMemo(() => {
+        // ... (chartData sem alterações)
         if (!kpis) return [];
         return [
             { name: 'Tráfego Pago', value: kpis.paid_leads, fill: '#3b82f6' },
@@ -153,21 +159,14 @@ export default function TraqueamentoPage() {
     const totalPercentageText = kpis ? `${(kpis.total_checkins || 0).toLocaleString('pt-BR')} de ${(kpis.total_leads || 0).toLocaleString('pt-BR')}` : '0 de 0';
 
     const handleNavigate = (type) => {
+        // ... (handleNavigate sem alterações)
         if (!selectedLaunchId) { toast.error("Por favor, selecione um lançamento primeiro."); return; }
-        // --- CORREÇÃO: Passa o 'codigo' em vez do 'nome' ---
         const launchCode = launches.find(l => l.id === selectedLaunchId)?.codigo || 'detalhe';
         const queryParams = new URLSearchParams({ launchId: selectedLaunchId, launchName: launchCode }).toString();
-
         switch (type) {
-            case 'paid':
-                router.push(`/Dashboards/traqueamento/detalhe-pago?${queryParams}`);
-                break;
-            case 'organic':
-                router.push(`/Dashboards/traqueamento/detalhe-organico?${queryParams}`);
-                break;
-            case 'untracked':
-                router.push(`/Dashboards/traqueamento/detalhe-nao-traqueado?${queryParams}`);
-                break;
+            case 'paid': router.push(`/Dashboards/traqueamento/detalhe-pago?${queryParams}`); break;
+            case 'organic': router.push(`/Dashboards/traqueamento/detalhe-organico?${queryParams}`); break;
+            case 'untracked': router.push(`/Dashboards/traqueamento/detalhe-nao-traqueado?${queryParams}`); break;
         }
     };
 
@@ -179,8 +178,8 @@ export default function TraqueamentoPage() {
                 <div className="flex justify-center items-center h-96"> <FaSpinner className="animate-spin text-blue-500 text-5xl" /> </div>
             ) : !kpis ? (
                  <div className="text-center py-16">
-                     <p className="text-gray-500 dark:text-gray-400">Não há dados para exibir para este lançamento.</p>
-                 </div>
+                    <p className="text-gray-500 dark:text-gray-400">Não há dados para exibir para este lançamento.</p>
+                </div>
             ) : (
                 <main className="space-y-8">
                     <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -223,4 +222,3 @@ export default function TraqueamentoPage() {
         </div>
     );
 }
-

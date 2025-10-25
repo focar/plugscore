@@ -30,6 +30,7 @@ export default function Sidebar({ userProfile }) {
             { name: 'Perfil de MQL', href: '/Dashboards/perfil-de-mql' },
             { name: 'Compradores', href: '/Dashboards/origem-compradores' },
             { name: 'Análise de IA', href: '/Dashboards/analise-ia' },
+            { name: 'Debriefing de Conversão', href: '/Dashboards/debriefing-conversao' },
         ],
         OPERACIONAL: [
             { name: 'Lançamentos', href: '/Operacional/lancamentos' },
