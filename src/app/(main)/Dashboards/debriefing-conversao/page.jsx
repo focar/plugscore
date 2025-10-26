@@ -1,14 +1,14 @@
 'use client';
 
 // =================================================================
-// /// --- CÓDIGO v16 (Otimizações Responsivas Gráficos/Tabelas - COMPLETO REAL) --- ///
+// /// --- CÓDIGO v24 (Corrige Hydration Warnings + 100% COMPLETO) --- ///
 // =================================================================
 
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AppContext } from '@/context/AppContext';
 import toast, { Toaster } from 'react-hot-toast';
-import { Download, X, BarChart2, PieChart, Database, ListChecks, CheckCheck, Target, Star, UserCheck, Lightbulb } from 'lucide-react';
+import { Download, X, BarChart2, PieChart, Database, ListChecks, CheckCheck, Target, Star, UserCheck, Lightbulb, Users } from 'lucide-react';
 
 import { Bar, Pie } from 'react-chartjs-2';
 import {
@@ -39,25 +39,6 @@ function Modal({ isOpen, onClose, title, children }) {
     );
 }
 const Spinner = () => <div className="flex justify-center items-center h-60"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div></div>;
-
-const mqlLevelOrder = ['A', 'B', 'C', 'D', 'Sem MQL'];
-const mqlLevelColors = { 'A': '#10b981', 'B': '#3b82f6', 'C': '#eab308', 'D': '#ef4444', 'Sem MQL': '#6b7280' };
-
-const ScoreDistributionBar = ({ distribution }) => {
-    if (!distribution || typeof distribution !== 'object') { return <div className="text-xs text-gray-400 dark:text-gray-500 italic">Sem MQL</div>; }
-    const total = mqlLevelOrder.reduce((sum, key) => sum + (distribution[key] || 0), 0);
-    if (total === 0) return <div className="text-xs text-gray-400 dark:text-gray-500 italic">Sem MQL</div>;
-    const title = mqlLevelOrder.map(key => `${key}: ${distribution[key] || 0}`).filter(part => !(part.endsWith(': 0'))).join(' | ');
-    return (
-        <div className="w-full flex rounded-full h-3 bg-gray-200 dark:bg-gray-600 overflow-hidden" title={title}>
-            {mqlLevelOrder.map(key => {
-                const percentage = total > 0 ? (distribution[key] || 0) / total * 100 : 0;
-                if (percentage === 0) return null;
-                return ( <div key={key} className="h-full" style={{ width: `${percentage}%`, backgroundColor: mqlLevelColors[key] || mqlLevelColors['Sem MQL'] }} ></div> );
-            })}
-        </div>
-    );
-};
 
 const KpiCard = ({ title, value, subtext }) => (
     <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow">
@@ -110,6 +91,9 @@ export default function DebriefingConversaoPage() {
     const [mqlAnalysis, setMqlAnalysis] = useState([]);
     const [conclusoes, setConclusoes] = useState({ funcionou: '', ajustar: '', testar: '', briefing_metas: '', briefing_estrategia: '' });
     const [automatedInsights, setAutomatedInsights] = useState({ escalar: [], ajustar: [] });
+    const [allLeadsAnswers, setAllLeadsAnswers] = useState({});
+    const [buyersAnswers, setBuyersAnswers] = useState({});
+
 
     // --- Lógica de Busca de Dados ---
     useEffect(() => {
@@ -125,8 +109,8 @@ export default function DebriefingConversaoPage() {
     }, [setHeaderContent, selectedLaunch, launches, isLoadingLaunches]);
 
     const fetchDebriefData = useCallback(async () => {
-        if (!selectedLaunch || !userProfile) return; setIsLoadingDebrief(true); setResumo(null); setMovimentacao([]); setFontes([]); setTabelaMestra([]); setScoreAnalysis([]); setMqlAnalysis([]); setAutomatedInsights({ escalar: [], ajustar: [] }); setConclusoes({ funcionou: '', ajustar: '', testar: '', briefing_metas: '', briefing_estrategia: '' });
-        try { const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id; const [ resumoResult, movResult, fontesResult, tabelaResult, conclusoesResult, scoreResult, mqlResult, insightsResult ] = await Promise.allSettled([ supabase.rpc('get_debrief_resumo', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_movimentacao_diaria', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_fontes_trafego', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_tabela_mestra', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_conclusoes', { p_launch_id: selectedLaunch }), supabase.rpc('get_debrief_score_range_analysis', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_mql_analysis', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_automated_insights', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }) ]);
+        if (!selectedLaunch || !userProfile) return; setIsLoadingDebrief(true); setResumo(null); setMovimentacao([]); setFontes([]); setTabelaMestra([]); setScoreAnalysis([]); setMqlAnalysis([]); setAutomatedInsights({ escalar: [], ajustar: [] }); setAllLeadsAnswers({}); setBuyersAnswers({}); setConclusoes({ funcionou: '', ajustar: '', testar: '', briefing_metas: '', briefing_estrategia: '' });
+        try { const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id; const [ resumoResult, movResult, fontesResult, tabelaResult, conclusoesResult, scoreResult, mqlResult, insightsResult, allAnswersResult, buyersAnswersResult ] = await Promise.allSettled([ supabase.rpc('get_debrief_resumo', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_movimentacao_diaria', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_fontes_trafego', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_tabela_mestra', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_conclusoes', { p_launch_id: selectedLaunch }), supabase.rpc('get_debrief_score_range_analysis', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_mql_analysis', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_automated_insights', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_all_leads_answers', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), supabase.rpc('get_debrief_buyers_answers', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }) ]);
         if (resumoResult.status === 'fulfilled' && !resumoResult.value.error) setResumo(resumoResult.value.data?.[0] || null); else { toast.error('Erro Resumo.'); console.error("Erro Resumo:", resumoResult.reason || resumoResult.value?.error); }
         if (movResult.status === 'fulfilled' && !movResult.value.error) setMovimentacao(movResult.value.data || []); else { toast.error('Erro Mov.'); console.error("Erro Mov:", movResult.reason || movResult.value?.error); }
         if (fontesResult.status === 'fulfilled' && !fontesResult.value.error) setFontes(fontesResult.value.data || []); else { toast.error('Erro Fontes.'); console.error("Erro Fontes:", fontesResult.reason || fontesResult.value?.error); }
@@ -135,6 +119,8 @@ export default function DebriefingConversaoPage() {
         if (scoreResult.status === 'fulfilled' && !scoreResult.value.error) setScoreAnalysis(scoreResult.value.data || []); else { toast.error('Erro Score.'); console.error("Erro Score:", scoreResult.reason || scoreResult.value?.error); }
         if (mqlResult.status === 'fulfilled' && !mqlResult.value.error) setMqlAnalysis(mqlResult.value.data || []); else { toast.error('Erro MQL.'); console.error("Erro MQL:", mqlResult.reason || mqlResult.value?.error); }
         if (insightsResult.status === 'fulfilled' && !insightsResult.value.error) { setAutomatedInsights(insightsResult.value.data || { escalar: [], ajustar: [] }); } else { toast.error('Erro Insights.'); console.error("Erro Insights:", insightsResult.reason || insightsResult.value?.error); setAutomatedInsights({ escalar: [], ajustar: [] }); }
+        if (allAnswersResult.status === 'fulfilled' && !allAnswersResult.value.error) { const grouped = (allAnswersResult.value.data || []).reduce((acc, curr) => { const q = curr.question_text || 'Sem Pergunta'; acc[q] = acc[q] || []; acc[q].push({ answer: curr.answer_text, count: curr.answer_count, percentage: curr.answer_percentage }); return acc; }, {}); setAllLeadsAnswers(grouped); } else { toast.error('Erro Perfil Geral.'); console.error("Erro All Answers:", allAnswersResult.reason || allAnswersResult.value?.error); }
+        if (buyersAnswersResult.status === 'fulfilled' && !buyersAnswersResult.value.error) { const grouped = (buyersAnswersResult.value.data || []).reduce((acc, curr) => { const q = curr.question_text || 'Sem Pergunta'; acc[q] = acc[q] || []; acc[q].push({ answer: curr.answer_text, count: curr.answer_count, percentage: curr.answer_percentage }); return acc; }, {}); setBuyersAnswers(grouped); } else { toast.error('Erro Perfil Comprador.'); console.error("Erro Buyers Answers:", buyersAnswersResult.reason || buyersAnswersResult.value?.error); }
         } catch (err) { toast.error(`Erro fatal: ${err.message}`); } finally { setIsLoadingDebrief(false); }
     }, [selectedLaunch, supabase, userProfile, selectedClientId]);
 
@@ -149,17 +135,18 @@ export default function DebriefingConversaoPage() {
     };
 
     // --- Configurações dos Gráficos Chart.js ---
-    const commonChartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', boxWidth: 10, padding: 10, font: { size: 10 } } }, title: { display: false }, tooltip: { bodyFont: { size: 10 }, titleFont: { size: 12 }, callbacks: { label: function(context) { let label = context.dataset.label || context.label || ''; if (label) { label += ': '; } let value = context.parsed.y ?? context.parsed ?? 0; label += value.toLocaleString('pt-BR'); if (context.chart.config.type === 'pie') { let total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); let percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0.0%'; label += ` (${percentage})`; } return label; }}}}, scales: { x: { ticks: { color: '#9ca3af', maxRotation: 0, minRotation: 0, font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { color: '#374151' } } } };
-    const barChartData = { labels: movimentacao.map(d => d.dia_ref.substring(5)), datasets: [ { label: 'Inscrições', data: movimentacao.map(d => d.inscricoes), backgroundColor: 'rgba(59, 130, 246, 0.5)', borderColor: 'rgba(59, 130, 246, 1)', borderWidth: 1 }, { label: 'Check-ins', data: movimentacao.map(d => d.checkins), backgroundColor: 'rgba(16, 185, 129, 0.5)', borderColor: 'rgba(16, 185, 129, 1)', borderWidth: 1 }, { label: 'Vendas', data: movimentacao.map(d => d.vendas), backgroundColor: 'rgba(245, 158, 11, 0.5)', borderColor: 'rgba(245, 158, 11, 1)', borderWidth: 1 }, ], };
+    const tooltipLabelCallback = function(context) { let label = context.dataset.label || context.label || ''; if (label) { label += ': '; } let value = context.parsed?.y ?? context.parsed ?? null; if (value !== null) { label += value.toLocaleString('pt-BR'); } else { label += 'N/A'; } if (context.chart.config.type === 'pie' && value !== null) { let total = context.chart.data.datasets[0].data.reduce((a, b) => (a || 0) + (b || 0), 0); let percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0.0%'; label += ` (${percentage})`; } return label; };
+    const commonChartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', boxWidth: 10, padding: 10, font: { size: 10 } } }, title: { display: false }, tooltip: { bodyFont: { size: 10 }, titleFont: { size: 12 }, callbacks: { label: tooltipLabelCallback }}}, scales: { x: { ticks: { color: '#9ca3af', maxRotation: 0, minRotation: 0, font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { color: '#374151' } } }, layout: { padding: { top: 5, left: 0, right: 5, bottom: 0 } } };
+    const barChartData = { labels: movimentacao.map(d => d.dia_ref), datasets: [ { label: 'Inscrições', data: movimentacao.map(d => d.inscricoes), backgroundColor: 'rgba(59, 130, 246, 0.5)', borderColor: 'rgba(59, 130, 246, 1)', borderWidth: 1 }, { label: 'Check-ins', data: movimentacao.map(d => d.checkins), backgroundColor: 'rgba(16, 185, 129, 0.5)', borderColor: 'rgba(16, 185, 129, 1)', borderWidth: 1 }, { label: 'Compras', data: movimentacao.map(d => d.vendas), backgroundColor: 'rgba(245, 158, 11, 0.5)', borderColor: 'rgba(245, 158, 11, 1)', borderWidth: 1 }, ], };
     const barChartOptions = commonChartOptions;
     const pieChartData = { labels: fontes.map(f => f.fonte), datasets: [{ label: 'Leads', data: fontes.map(f => f.leads_gerados), backgroundColor: ['rgba(59, 130, 246, 0.7)', 'rgba(16, 185, 129, 0.7)', 'rgba(245, 158, 11, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(139, 92, 246, 0.7)', 'rgba(217, 70, 239, 0.7)'], borderColor: ['#1f2937'], borderWidth: 1, }], };
     const pieChartOptions = { ...commonChartOptions, plugins: {...commonChartOptions.plugins, legend: { position: 'bottom', labels: {...commonChartOptions.plugins.legend.labels }}}};
     const scorePieChartData = { labels: scoreAnalysis.map(s => s.score_range_name), datasets: [{ label: 'Check-ins', data: scoreAnalysis.map(s => s.checkins), backgroundColor: ['rgba(239, 68, 68, 0.7)','rgba(249, 115, 22, 0.7)','rgba(234, 179, 8, 0.7)','rgba(59, 130, 246, 0.7)','rgba(14, 165, 233, 0.7)','rgba(107, 114, 128, 0.7)',], borderColor: ['#1f2937'], borderWidth: 1, }], };
     const mqlPieChartData = { labels: mqlAnalysis.map(m => m.mql_level), datasets: [{ label: 'Check-ins', data: mqlAnalysis.map(m => m.checkins), backgroundColor: ['rgba(16, 185, 129, 0.7)','rgba(59, 130, 246, 0.7)','rgba(234, 179, 8, 0.7)','rgba(239, 68, 68, 0.7)','rgba(107, 114, 128, 0.7)',], borderColor: ['#1f2937'], borderWidth: 1, }], };
-    const analysisPieOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1', boxWidth: 10, padding: 5, font: { size: 10} } }, title: { display: false }, tooltip: { callbacks: { label: function(context) { let label = context.label || ''; let value = context.parsed || 0; if (label) { label += ': '; } label += value.toLocaleString('pt-BR'); let total = context.chart.data.datasets[0].data.reduce((a, b) => a + b, 0); let percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0.0%'; label += ` (${percentage})`; return label; }}}} };
+    const analysisPieOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#cbd5e1', boxWidth: 10, padding: 5, font: { size: 10} } }, title: { display: false }, tooltip: { callbacks: { label: tooltipLabelCallback }}} };
 
 
-    // --- FUNÇÃO AUXILIAR PARA RENDERIZAR TABELAS DE ANÁLISE ---
+    // --- FUNÇÃO AUXILIAR PARA RENDERIZAR TABELAS DE ANÁLISE (SCORE/MQL) ---
     const renderAnalysisTable = (data, titleKey, orderKey) => {
         if (!data || data.length === 0) { return <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados.</p>; }
         const sortedData = orderKey ? [...data].sort((a, b) => b[orderKey] - a[orderKey]) : data;
@@ -174,19 +161,19 @@ export default function DebriefingConversaoPage() {
                         <tr>
                             <th className={thClass}>{titleKey.replace(/_/g, ' ')}</th>
                             <th className={thClass}>Check-ins</th>
-                            <th className={thClass}>Vendas</th>
-                            <th className={thClass} title="Taxa de Check-in para Venda">Tx. C/V</th>
-                            <th className={thClass} title="Taxa de Check-in para Venda">Tx. Ck/V</th>
+                            <th className={thClass} title="Contribuição % do Total de Check-ins do Lançamento">% Ck Total</th>
+                            <th className={thClass}>Compras</th>
+                            <th className={thClass} title="Contribuição % do Total de Compras do Lançamento">% Compra Total</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         {sortedData.map((row, index) => (
                             <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                 <td className={tdPrimaryClass}>{row[titleKey]}</td>
-                                <td className={tdClass}>{row.checkins?.toLocaleString('pt-BR')}</td>
-                                <td className={tdClass}>{row.vendas?.toLocaleString('pt-BR')}</td>
-                                <td className={tdClass}>{parseFloat(row.tx_checkin_venda || 0).toFixed(2)}%</td>
-                                <td className={tdBoldClass}>{parseFloat(row.tx_lead_venda || 0).toFixed(2)}%</td>
+                                <td className={tdClass}>{(row.checkins || 0).toLocaleString('pt-BR')}</td>
+                                <td className={tdClass}>{parseFloat(row.tx_checkin_contribution || 0).toFixed(2)}%</td>
+                                <td className={tdClass}>{(row.vendas || 0).toLocaleString('pt-BR')}</td>
+                                <td className={tdBoldClass}>{parseFloat(row.tx_venda_contribution || 0).toFixed(2)}%</td>
                             </tr>
                         ))}
                     </tbody>
@@ -194,6 +181,54 @@ export default function DebriefingConversaoPage() {
             </div>
         );
     };
+
+     // --- FUNÇÃO AUXILIAR PARA RENDERIZAR ANÁLISE DE RESPOSTAS ---
+    const renderAnswersAnalysis = (answersData, title) => {
+        const questions = Object.keys(answersData);
+        if (questions.length === 0) {
+            return <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados de respostas para {title.toLowerCase()}.</p>;
+        }
+        return (
+            <div className="space-y-4 md:space-y-6">
+                {questions.map((question, qIndex) => {
+                    const questionData = answersData[question];
+                    const pieData = {
+                        labels: questionData.map(ans => ans.answer),
+                        datasets: [{
+                            label: 'Respostas',
+                            data: questionData.map(ans => ans.count),
+                            backgroundColor: ['rgba(16, 185, 129, 0.7)', 'rgba(59, 130, 246, 0.7)', 'rgba(234, 179, 8, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(139, 92, 246, 0.7)', 'rgba(107, 114, 128, 0.7)'].slice(0, questionData.length),
+                            borderColor: ['#1f2937'],
+                            borderWidth: 1,
+                        }],
+                    };
+                    const pieOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', boxWidth: 10, padding: 10, font: { size: 10 } } }, title: { display: false }, tooltip: { callbacks: { label: tooltipLabelCallback } } } };
+
+                    return (
+                        <div key={qIndex} className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-lg shadow">
+                            <h4 className="font-semibold mb-4 text-gray-800 dark:text-gray-100 text-sm md:text-base">{question}</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                                <div className="h-64 w-full">
+                                    <Pie options={pieOptions} data={pieData} />
+                                </div>
+                                <ul className="space-y-1 overflow-y-auto max-h-64 pr-2">
+                                    {questionData
+                                        .sort((a, b) => b.count - a.count)
+                                        .map((ans, aIndex) => (
+                                        <li key={aIndex} className="flex justify-between items-center text-xs md:text-sm text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 last:border-b-0 py-2">
+                                            <span className="truncate pr-2">{ans.answer}</span>
+                                            <span className="font-medium text-gray-800 dark:text-gray-100 whitespace-nowrap">{ans.count} ({ans.percentage}%)</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
 
     // --- Renderização (JSX) ---
     return (
@@ -210,12 +245,12 @@ export default function DebriefingConversaoPage() {
                         <SectionHeader icon={Database} title="Resumo Executivo" />
                         {!resumo ? <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p> : (
                              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 xs:gap-3 md:gap-4">
-                                <KpiCard title="Total Leads" value={resumo.total_leads?.toLocaleString('pt-BR') || '0'} />
-                                <KpiCard title="Total Check-ins" value={resumo.total_checkins?.toLocaleString('pt-BR') || '0'} />
-                                <KpiCard title="Total Vendas" value={resumo.total_vendas?.toLocaleString('pt-BR') || '0'} />
+                                <KpiCard title="Total Leads" value={(resumo.total_leads || 0).toLocaleString('pt-BR')} />
+                                <KpiCard title="Total Check-ins" value={(resumo.total_checkins || 0).toLocaleString('pt-BR')} />
+                                <KpiCard title="Total Compras" value={(resumo.total_vendas || 0).toLocaleString('pt-BR')} />
                                 <KpiCard title="Tx. L p/ C" value={`${parseFloat(resumo.tx_lead_checkin || 0).toFixed(2)}%`} />
-                                <KpiCard title="Tx. C p/ V" value={`${parseFloat(resumo.tx_checkin_venda || 0).toFixed(2)}%`} />
-                                <KpiCard title="Tx. L p/ V" value={`${parseFloat(resumo.tx_lead_venda || 0).toFixed(2)}%`} />
+                                <KpiCard title="Tx. C p/ Cp" value={`${parseFloat(resumo.tx_checkin_venda || 0).toFixed(2)}%`} />
+                                <KpiCard title="Tx. L p/ Cp" value={`${parseFloat(resumo.tx_lead_venda || 0).toFixed(2)}%`} />
                              </div>
                          )}
                     </section>
@@ -242,8 +277,26 @@ export default function DebriefingConversaoPage() {
                                 </div>
                                 <div className="lg:col-span-2 overflow-x-auto bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow">
                                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                        <thead className="bg-gray-50 dark:bg-gray-700"> <tr> <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Fonte</th> <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th> <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th> <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Vendas</th> <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Conversão Lead p/ Venda">Tx. L/V</th> </tr> </thead>
-                                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"> {fontes.map(f => ( <tr key={f.fonte} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"> <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{f.fonte}</td> <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{f.leads_gerados?.toLocaleString('pt-BR')}</td> <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{f.total_checkins?.toLocaleString('pt-BR')}</td> <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{f.vendas?.toLocaleString('pt-BR')}</td> <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-semibold text-gray-800 dark:text-white">{parseFloat(f.tx_lead_venda || 0).toFixed(2)}%</td> </tr> ))} </tbody>
+                                        <thead className="bg-gray-50 dark:bg-gray-700">
+                                            <tr>
+                                                <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Fonte</th>
+                                                <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th>
+                                                <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th>
+                                                <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Compras</th>
+                                                <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Conversão Lead p/ Compra">Tx. L/Cp</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                            {fontes.map(f => (
+                                                <tr key={f.fonte} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                                    <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{f.fonte}</td>
+                                                    <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{f.leads_gerados?.toLocaleString('pt-BR')}</td>
+                                                    <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{f.total_checkins?.toLocaleString('pt-BR')}</td>
+                                                    <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{f.vendas?.toLocaleString('pt-BR')}</td>
+                                                    <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-semibold text-gray-800 dark:text-white">{parseFloat(f.tx_lead_venda || 0).toFixed(2)}%</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
                                     </table>
                                 </div>
                             </div>
@@ -253,7 +306,7 @@ export default function DebriefingConversaoPage() {
                     {/* Seção 4: Tabela Mestra */}
                     <section>
                         <SectionHeader icon={ListChecks} title="Análise de Campanhas e Criativos (Tabela Mestra)" />
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 -mt-2">Esta tabela detalha a performance de cada campanha e criativo, desde a captação até a venda...</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 -mt-2">Esta tabela detalha a performance de cada campanha e criativo, desde a captação até a compra...</p>
                         <div className="overflow-x-auto bg-white dark:bg-gray-800 shadow rounded-lg p-2 md:p-4">
                             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead className="bg-gray-50 dark:bg-gray-700">
@@ -262,10 +315,10 @@ export default function DebriefingConversaoPage() {
                                         <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Criativo</th>
                                         <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th>
                                         <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th>
-                                        <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Lead p/ Check-in">Tx. L/C</th>
-                                        <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Vendas</th>
-                                        <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Check-in p/ Venda">Tx. C/V</th>
-                                        <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Lead p/ Venda">Tx. L/V</th>
+                                        <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Contribuição % do Total de Check-ins do Lançamento">Ck / Total Ck</th>
+                                        <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Compras</th>
+                                        <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Check-in p/ Compra">Tx. C/Cp</th>
+                                        <th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Lead p/ Compra">Tx. L/Cp</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -273,10 +326,10 @@ export default function DebriefingConversaoPage() {
                                         <tr key={`${row.utm_campaign}-${row.utm_content}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                             <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{row.utm_campaign || '(nd)'}</td>
                                             <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{row.utm_content || '(nd)'}</td>
-                                            <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{row.leads?.toLocaleString('pt-BR')}</td>
-                                            <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{row.checkins?.toLocaleString('pt-BR')}</td>
-                                            <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{parseFloat(row.tx_lead_checkin || 0).toFixed(2)}%</td>
-                                            <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{row.vendas?.toLocaleString('pt-BR')}</td>
+                                            <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.leads || 0).toLocaleString('pt-BR')}</td>
+                                            <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.checkins || 0).toLocaleString('pt-BR')}</td>
+                                            <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{parseFloat(row.tx_lead_checkin_contribution || 0).toFixed(2)}%</td>
+                                            <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.vendas || 0).toLocaleString('pt-BR')}</td>
                                             <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{parseFloat(row.tx_checkin_venda || 0).toFixed(2)}%</td>
                                             <td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-bold text-gray-800 dark:text-white">{parseFloat(row.tx_lead_venda || 0).toFixed(2)}%</td>
                                         </tr>
@@ -314,6 +367,18 @@ export default function DebriefingConversaoPage() {
                                 <div className="bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow"> {renderAnalysisTable(mqlAnalysis, 'mql_level', 'mql_order')} </div>
                             </div>
                         ): <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
+                    </section>
+
+                     {/* Seção Perfil dos Inscritos */}
+                    <section>
+                        <SectionHeader icon={Users} title="Perfil dos Inscritos (Respostas Gerais - Top 5)" />
+                        {renderAnswersAnalysis(allLeadsAnswers, "inscritos")}
+                    </section>
+
+                    {/* Seção Perfil Compradores */}
+                    <section>
+                        <div className="flex items-center gap-2 md:gap-3 pb-2 border-b-2 border-green-500 mb-4"> <UserCheck className="text-green-500" size={24} /> <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Perfil dos Compradores (Respostas Chave - Top 5)</h2> </div>
+                        {renderAnswersAnalysis(buyersAnswers, "compradores")}
                     </section>
 
                     {/* Seção Insights Sugeridos */}
