@@ -12,6 +12,7 @@
     "@heroicons/react": "^2.2.0",
     "@nivo/bar": "^0.99.0",
     "@nivo/treemap": "^0.99.0",
+    "@react-pdf/renderer": "^4.3.1",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/auth-ui-react": "^0.4.7",
     "@supabase/auth-ui-shared": "^0.1.8",
