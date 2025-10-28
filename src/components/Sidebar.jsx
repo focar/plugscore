@@ -20,7 +20,7 @@ export default function Sidebar({ userProfile }) {
             { name: 'Traqueamento de Leads', href: '/Dashboards/traqueamento' },
             { name: 'Analise de Criativos', href: '/Dashboards/analise-criativos' },
             { name: 'Criativos por Score', href: '/Dashboards/criativos-por-score' },
-            { name: 'Campanha por Hora', href: '/Dashboards/analise-campanha' },
+            { name: 'Campanha por Hora', href: '/Dashboards/campanha-hora' },
             { name: 'Otimizador de Campanha', href: '/Dashboards/otimizador-campanhas/' },
             { name: 'Campanhas e Criativos', href: '/Dashboards/campanhas-criativos' },
             //{ name: 'Resumo Diario', href: '/Dashboards/resumo-diario' },

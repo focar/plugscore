@@ -1,4 +1,3 @@
-// /src/app/(main)/Dashboards/traqueamento/page.jsx
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useContext } from "react";
@@ -10,19 +9,20 @@ import { ArrowRight, Percent } from "lucide-react";
 import toast, { Toaster } from 'react-hot-toast';
 import dynamic from 'next/dynamic';
 
+// --- CORREÇÃO: Revertendo a forma de importação dinâmica para a original ---
 const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false });
 const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false });
 const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
 const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
 const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false });
+// --- FIM DA CORREÇÃO ---
 
-// *** CORREÇÃO: Reduzido tamanho da fonte do valor principal ***
+// Componente KpiCard
 const KpiCard = ({ title, value, percentage, icon: Icon }) => (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md h-full">
         <div className="flex items-center justify-between">
             <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">{title}</p>
-                {/* Alterado de text-4xl para text-3xl */}
                 <p className="text-3xl font-bold text-gray-800 dark:text-gray-100 mt-1">{value}</p>
                 {percentage && <p className="text-sm font-semibold text-gray-600 dark:text-gray-300 mt-1">{percentage}</p>}
             </div>
@@ -32,10 +32,9 @@ const KpiCard = ({ title, value, percentage, icon: Icon }) => (
         </div>
     </div>
 );
-// *** FIM DA CORREÇÃO ***
 
+// Componente TrafficCard
 const TrafficCard = ({ title, leads, checkins, icon: Icon, onClick, rateColor, totalLeads }) => {
-    // ... (Componente TrafficCard sem alterações)
     const leadPercentage = totalLeads > 0 ? ((leads / totalLeads) * 100).toFixed(1) : '0.0';
     return (
         <button onClick={onClick} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-300 p-6 rounded-lg shadow-md text-left w-full group">
@@ -65,18 +64,34 @@ export default function TraqueamentoPage() {
     const supabase = createClientComponentClient();
     const { setHeaderContent, userProfile, selectedClientId } = useContext(AppContext);
 
-    // ... (Estados e useEffects sem alterações)
     const [launches, setLaunches] = useState([]);
     const [selectedLaunchId, setSelectedLaunchId] = useState('');
     const [kpis, setKpis] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false); // Inicia como false
     const [isLoadingLaunches, setIsLoadingLaunches] = useState(true);
 
+    // Efeito para buscar os lançamentos (dropdown principal)
     useEffect(() => {
         if (!userProfile) return;
+
+        const isAllClients = userProfile.role === 'admin' && selectedClientId === 'all';
+        const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id;
+
+        // Se for admin e "Todos os Clientes", limpa tudo e para
+        if (isAllClients) {
+            setLaunches([]);
+            setSelectedLaunchId('');
+            setIsLoadingLaunches(false);
+            setKpis(null); // Limpa KPIs antigos
+            setIsLoading(false); // Para qualquer spinner de dados
+            return;
+        }
+
+        // Se um cliente específico for selecionado, busca os lançamentos
         const fetchLaunches = async () => {
             setIsLoadingLaunches(true);
-            let clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id;
+            setKpis(null); // Limpa KPIs ao trocar de cliente
+            setIsLoading(true); // Ativa o spinner de dados
             
             const { data, error } = await supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend });
 
@@ -86,23 +101,21 @@ export default function TraqueamentoPage() {
             } else if (data) {
                 const sorted = [...data].sort((a, b) => (a.codigo || a.nome).localeCompare(b.codigo || b.nome));
                 setLaunches(sorted);
-                if (sorted.length > 0) {
-                    const inProgress = sorted.find(l => l.status.toLowerCase() === 'em andamento'); // Consistent casing
-                    setSelectedLaunchId(inProgress ? inProgress.id : sorted[0].id);
-                } else {
-                    setIsLoading(false);
-                }
+                setSelectedLaunchId('');
             }
             setIsLoadingLaunches(false);
+            setIsLoading(false); // Para o spinner de dados, pois nenhum lançamento foi selecionado
         };
+        
         fetchLaunches();
     }, [userProfile, selectedClientId, supabase]);
 
+    // Efeito para buscar os dados principais (KPIs, Gráfico)
     useEffect(() => {
         const fetchDataForLaunch = async () => {
             if (!selectedLaunchId || !userProfile) {
-                if (!isLoadingLaunches) setIsLoading(false);
-                setKpis(null);
+                setKpis(null); 
+                setIsLoading(false); 
                 return;
             }
 
@@ -124,29 +137,41 @@ export default function TraqueamentoPage() {
         };
 
         fetchDataForLaunch();
-    }, [selectedLaunchId, userProfile, selectedClientId, supabase, isLoadingLaunches]);
+    }, [selectedLaunchId, userProfile, selectedClientId, supabase]); 
     
+    // Efeito para atualizar o Header (Dropdown de Lançamento)
     useEffect(() => {
+        const isClientSelected = !(userProfile?.role === 'admin' && selectedClientId === 'all');
+        const isDisabled = isLoadingLaunches || !isClientSelected;
+
         const launchSelector = (
             <select 
                 value={selectedLaunchId} 
                 onChange={(e) => setSelectedLaunchId(e.target.value)} 
-                disabled={isLoadingLaunches || launches.length === 0}
+                disabled={isDisabled}
                 className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2"
             >
-                {isLoadingLaunches ? <option>Carregando...</option> : 
-                 launches.length > 0 ? 
-                 launches.map(l => <option key={l.id} value={l.id}>{(l.codigo || l.nome)} ({l.status})</option>) :
-                 <option>Nenhum lançamento</option>}
+                {!isClientSelected ? (
+                    <option value="" disabled>Selecione um cliente</option>
+                ) : isLoadingLaunches ? (
+                    <option value="" disabled>Carregando...</option>
+                ) : launches.length === 0 ? (
+                    <option value="" disabled>Nenhum lançamento</option>
+                ) : (
+                    <option value="">Selecione um lançamento</option>
+                )}
+                
+                {launches.map(l => <option key={l.id} value={l.id}>{l.codigo} ({l.status})</option>)}
             </select>
         );
+        
         setHeaderContent({ title: 'Traqueamento de Trafego', controls: launchSelector });
         return () => setHeaderContent({ title: '', controls: null });
-    }, [setHeaderContent, selectedLaunchId, launches, isLoadingLaunches]);
+    }, [setHeaderContent, selectedLaunchId, launches, isLoadingLaunches, userProfile, selectedClientId]);
 
 
+    // Dados para o gráfico de pizza
     const chartData = useMemo(() => {
-        // ... (chartData sem alterações)
         if (!kpis) return [];
         return [
             { name: 'Tráfego Pago', value: kpis.paid_leads, fill: '#3b82f6' },
@@ -158,8 +183,8 @@ export default function TraqueamentoPage() {
     const checkinRate = kpis && kpis.total_leads > 0 ? ((kpis.total_checkins / kpis.total_leads) * 100).toFixed(1) + '%' : '0.0%';
     const totalPercentageText = kpis ? `${(kpis.total_checkins || 0).toLocaleString('pt-BR')} de ${(kpis.total_leads || 0).toLocaleString('pt-BR')}` : '0 de 0';
 
+    // Navegação para páginas de detalhe
     const handleNavigate = (type) => {
-        // ... (handleNavigate sem alterações)
         if (!selectedLaunchId) { toast.error("Por favor, selecione um lançamento primeiro."); return; }
         const launchCode = launches.find(l => l.id === selectedLaunchId)?.codigo || 'detalhe';
         const queryParams = new URLSearchParams({ launchId: selectedLaunchId, launchName: launchCode }).toString();
@@ -170,24 +195,38 @@ export default function TraqueamentoPage() {
         }
     };
 
+    // Condição de loading principal
+    const isPageLoading = isLoading || isLoadingLaunches;
+
     return (
         <div className="p-4 md:p-6 lg:p-8 text-gray-900 dark:text-gray-100">
             <Toaster position="top-center" />
 
-            {isLoading ? (
+            {/* Gerenciamento de estado de exibição */}
+            {isPageLoading ? (
+                // 1. Estado de Carregamento
                 <div className="flex justify-center items-center h-96"> <FaSpinner className="animate-spin text-blue-500 text-5xl" /> </div>
-            ) : !kpis ? (
+            ) : !selectedLaunchId ? (
+                // 2. Estado Inicial (sem lançamento selecionado)
                  <div className="text-center py-16">
-                    <p className="text-gray-500 dark:text-gray-400">Não há dados para exibir para este lançamento.</p>
+                    <p className="text-gray-500 dark:text-gray-400">Por favor, selecione um cliente e um lançamento para exibir os dados.</p>
+                </div>
+            ) : !kpis ? (
+                // 3. Estado de "Sem Dados" (lançamento selecionado, mas sem KPIs)
+                <div className="text-center py-16">
+                    <p className="text-gray-500 dark:text-gray-400">Não há dados de traqueamento para exibir para este lançamento.</p>
                 </div>
             ) : (
+                // 4. Estado de "Sucesso" (dados carregados)
                 <main className="space-y-8">
+                    {/* Seção de KPIs */}
                     <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <KpiCard title="TOTAL DE LEADS" value={(kpis.total_leads || 0).toLocaleString('pt-BR')} icon={FaUsers} />
                         <KpiCard title="TOTAL DE CHECK-INS" value={(kpis.total_checkins || 0).toLocaleString('pt-BR')} percentage={totalPercentageText} icon={FaUserCheck} />
                         <KpiCard title="TAXA DE CHECK-IN" value={checkinRate} icon={Percent} />
                     </section>
                     
+                    {/* Seção Principal (Cards de Tráfego + Gráfico) */}
                     <section className="space-y-6">
                         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 pb-2">Análise por Origem de Tráfego</h2>
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
@@ -200,15 +239,17 @@ export default function TraqueamentoPage() {
                                <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%" labelLine={false} label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
-                                                const radius = innerRadius + (outerRadius - innerRadius) * 1.3;
-                                                const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
-                                                const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
-                                                return (
-                                                    <text x={x} y={y} fill="currentColor" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-sm font-semibold">
-                                                        {`${(percent * 100).toFixed(1)}%`}
-                                                    </text>
-                                                );
-                                            }}>
+                                            // Não mostra o label se a porcentagem for muito pequena
+                                            if (!percent || percent < 0.02) return null; 
+                                            const radius = innerRadius + (outerRadius - innerRadius) * 1.3;
+                                            const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
+                                            const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
+                                            return (
+                                                <text x={x} y={y} fill="currentColor" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-sm font-semibold">
+                                                    {`${(percent * 100).toFixed(1)}%`}
+                                                </text>
+                                            );
+                                        }}>
                                             {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
                                         </Pie>
                                         <Legend />
@@ -222,3 +263,4 @@ export default function TraqueamentoPage() {
         </div>
     );
 }
+
