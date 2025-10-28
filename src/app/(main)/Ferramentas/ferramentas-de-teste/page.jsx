@@ -10,6 +10,9 @@ const PlayIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="16" 
 const TrashIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>);
 const RotateCwIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>);
 const AlertTriangleIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>);
+// NOVO ÍCONE
+const EraserIcon = (props) => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21H7Z"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>);
+
 
 export default function FerramentasDeTestePage() {
     const { setHeaderContent, selectedClientId, userProfile } = useContext(AppContext);
@@ -49,6 +52,7 @@ export default function FerramentasDeTestePage() {
 
     // Função auxiliar para chamar RPCs e tratar erros
     const runRpc = async (launchCode, functionName) => {
+        // @ts-ignore
         const { data, error } = await supabase.rpc(functionName, { p_launch_code: launchCode });
         if (error) {
             throw new Error(`Erro em ${functionName}: ${error.message}`);
@@ -79,6 +83,7 @@ export default function FerramentasDeTestePage() {
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: finalMessage, type: 'success' } }));
 
         } catch (err) {
+            // @ts-ignore
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
         } finally {
             setIsProcessing(false);
@@ -94,6 +99,7 @@ export default function FerramentasDeTestePage() {
             const message = await runRpc(launchCode, 'reset_scores_e_respostas');
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: message, type: 'success' } }));
         } catch (err) {
+            // @ts-ignore
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
         } finally {
             setIsProcessing(false);
@@ -108,6 +114,7 @@ export default function FerramentasDeTestePage() {
             const message = await runRpc(launchCode, 'reset_status_checkins');
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: message, type: 'success' } }));
         } catch (err) {
+            // @ts-ignore
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
         } finally {
             setIsProcessing(false);
@@ -117,6 +124,7 @@ export default function FerramentasDeTestePage() {
     const handleDeleteAllData = async (launchCode) => {
         if (isProcessing) return;
         
+        // @ts-ignore
         const confirm1 = window.prompt(`AÇÃO DESTRUTIVA!\n\nVocê está prestes a apagar TODOS os dados (leads, respostas, check-ins, inscrições) do lançamento "${launchCode}".\n\nPara confirmar, digite o código do lançamento abaixo:`);
         if (confirm1 !== launchCode) {
             toast.error('Ação cancelada. O código digitado não corresponde.');
@@ -130,6 +138,32 @@ export default function FerramentasDeTestePage() {
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: message, type: 'success' } }));
             fetchLancamentos(); // Recarrega a lista após a exclusão
         } catch (err) {
+            // @ts-ignore
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    // --- NOVA FUNÇÃO PARA LIMPAR COMPRADORES ---
+    const handleClearBuyers = async (launchCode) => {
+        if (isProcessing) return;
+
+        // @ts-ignore
+        const confirm1 = window.prompt(`AÇÃO DE LIMPEZA!\n\nVocê está prestes a limpar TODOS os dados de COMPRADORES (da tabela de carga, respostas e status de 'comprador' nos leads) do lançamento "${launchCode}".\n\nIsso NÃO apaga os leads, apenas o status de comprador.\n\nPara confirmar, digite o código do lançamento abaixo:`);
+        if (confirm1 !== launchCode) {
+            toast.error('Ação cancelada. O código digitado não corresponde.');
+            return;
+        }
+
+        setIsProcessing(true);
+        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: `Limpando dados de compradores de ${launchCode}...`, type: 'info' } }));
+        try {
+            // Chama a nova função RPC
+            const message = await runRpc(launchCode, 'limpar_dados_compradores');
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: message, type: 'success' } }));
+        } catch (err) {
+            // @ts-ignore
             setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
         } finally {
             setIsProcessing(false);
@@ -151,28 +185,43 @@ export default function FerramentasDeTestePage() {
                 lancamentos.length === 0 ? <p className="text-center py-8 text-gray-500">Nenhum lançamento encontrado para o cliente selecionado.</p> :
                 (
                     <div className="space-y-4">
+                        {/* @ts-ignore */}
                         {lancamentos.map(launch => (
                             <div key={launch.id} className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4">
                                 
+                                {/* @ts-ignore */}
                                 {processingStatus[launch.codigo] && (
                                     <div className={`mb-3 p-3 text-sm rounded-md ${
+                                        // @ts-ignore
                                         processingStatus[launch.codigo].type === 'error' ? 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200' :
+                                        // @ts-ignore
                                         (processingStatus[launch.codigo].type === 'info' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200' : 
                                         'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200')
                                     }`}>
+                                        {/* @ts-ignore */}
                                         {processingStatus[launch.codigo].message}
                                     </div>
                                 )}
 
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                     <div>
+                                        {/* @ts-ignore */}
                                         <h3 className="font-bold text-lg font-mono text-gray-800 dark:text-gray-200">{launch.codigo}</h3>
+                                        {/* @ts-ignore */}
                                         <p className="text-sm text-gray-500 dark:text-gray-400">{launch.nome}</p>
                                     </div>
                                     <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end">
+                                        {/* @ts-ignore */}
                                         <button disabled={isProcessing} onClick={() => handleProcessCheckins(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-wait"><PlayIcon /> Processar Check-ins</button>
+                                        {/* @ts-ignore */}
                                         <button disabled={isProcessing} onClick={() => handleClearScores(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-wait"><TrashIcon /> Limpar Scores</button>
+                                        {/* @ts-ignore */}
                                         <button disabled={isProcessing} onClick={() => handleResetStatus(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-black bg-yellow-400 rounded-md hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-wait"><RotateCwIcon /> Reiniciar Status</button>
+                                        
+                                        {/* --- BOTÃO NOVO ADICIONADO AQUI --- */}
+                                        <button disabled={isProcessing} onClick={() => handleClearBuyers(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-wait"><EraserIcon /> Limpar Compradores</button>
+                                        
+                                        {/* @ts-ignore */}
                                         <button disabled={isProcessing} onClick={() => handleDeleteAllData(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-purple-700 rounded-md hover:bg-purple-800 disabled:opacity-50 disabled:cursor-wait"><AlertTriangleIcon /> Apagar TUDO</button>
                                     </div>
                                 </div>

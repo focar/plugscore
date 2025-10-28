@@ -23,6 +23,7 @@ let Font = null;
 // Eles só serão definidos DEPOIS que a biblioteca for carregada no cliente.
 let DebriefingPDFDocument = () => null;
 let PdfAnalysisTable = () => null;
+let PdfTopTwoTable = () => null; // NOVO PARA A TABELA RESUMO
 let pdfStyles = {};
 
 
@@ -36,7 +37,7 @@ const PDFButtonWrapper = ({
     chartImages,
     selectedLaunch,
     captureChartImages,
-    ...data // Recebe o restante dos dados (resumo, fontes, etc.)
+    ...data // Recebe o restante dos dados (resumo, fontes, perfilPublicoData, etc.)
 }) => {
 
     const [isClient, setIsClient] = useState(false);
@@ -78,21 +79,27 @@ const PDFButtonWrapper = ({
                     tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
                     tableColHeader: { padding: 5, fontSize: 9, fontWeight: 'bold', color: '#374151', borderRightWidth: 1, borderRightColor: '#E5E7EB' },
                     tableCol: { padding: 5, fontSize: 8, borderRightWidth: 1, borderRightColor: '#E5E7EB' },
-                    profileSection: { marginBottom: 15 },
+                    // Estilos para Tabelas Resumo (Top 2)
+                    tableTopTwoColHeader: { padding: 5, fontSize: 9, fontWeight: 'bold', color: '#374151' },
+                    tableTopTwoCol: { padding: 5, fontSize: 9 },
+                    tableTopTwoRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
+                    tableTopTwoRowAlt: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', backgroundColor: '#F9FAFB' }, // Zebrado
+                    // Estilos de Perfil
+                    profileSection: { marginBottom: 15, pageBreakInside: 'avoid' }, // Evita quebrar a seção no meio
                     profileQuestion: { fontSize: 12, fontWeight: 'bold', marginBottom: 8, color: '#1F2937' },
-                    profileContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+                    profileContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
                     profileList: { width: '55%' },
                     profileChart: { width: '40%', height: 'auto', maxHeight: 150, alignSelf: 'center' },
                     profileAnswerRow: { flexDirection: 'row', justifyContent: 'space-between', fontSize: 9, marginBottom: 3, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6', paddingBottom: 2},
                     profileAnswerLabel: { maxWidth: '70%' },
+                    // Estilos de Insights
                     insightList: { paddingLeft: 10 },
                     insightItem: { fontSize: 10, marginBottom: 5, flexDirection: 'row' },
-                    insightText: { flex: 1, // Permite que o texto quebre a linha
-                                    marginLeft: 5, // Adiciona um pequeno espaço após o bullet
-                                },
+                    insightText: { flex: 1, marginLeft: 5 },
                     textAreaPDF: { fontSize: 10, fontFamily: 'Helvetica', color: '#333', padding: 10, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 4, marginTop: 5 }
                 });
 
+                // Tabela de Análise Padrão (Score, MQL)
                 PdfAnalysisTable = ({ data = [], col1Name }) => (
                     <View style={pdfStyles.table}>
                         <View style={pdfStyles.tableHeader}>
@@ -114,17 +121,91 @@ const PDFButtonWrapper = ({
                     </View>
                 );
 
+                // *** NOVA TABELA PARA O TOP 2 ***
+                PdfTopTwoTable = ({ data = [], questions = {} }) => {
+                    if (!data || data.length === 0) return <Text style={{fontSize: 10, color: 'grey'}}>Nenhum dado para o resumo.</Text>;
+                    
+                    const groupedTopTwo = data.reduce((acc, curr) => {
+                        acc[curr.question_text] = acc[curr.question_text] || [];
+                        acc[curr.question_text].push({ answer: curr.answer_text, percentage: curr.answer_percentage });
+                        return acc;
+                    }, {});
+
+                    const orderedQuestions = [ 
+                        ...(questions.publico || []), 
+                        ...(questions.inscritos || []), 
+                        ...(questions.compradores || []) 
+                    ].filter(q => groupedTopTwo[q]); // Filtra apenas as que temos dados
+
+                    return (
+                        <View style={pdfStyles.table}>
+                            <View style={pdfStyles.tableHeader}>
+                                <Text style={[pdfStyles.tableTopTwoColHeader, { width: '50%' }]}>Pergunta</Text>
+                                <Text style={[pdfStyles.tableTopTwoColHeader, { width: '25%' }]}>1ª Resposta Mais Comum</Text>
+                                <Text style={[pdfStyles.tableTopTwoColHeader, { width: '25%' }]}>2ª Resposta Mais Comum</Text>
+                            </View>
+                            {orderedQuestions.map((questionText, index) => {
+                                const answers = groupedTopTwo[questionText] || [];
+                                const top1 = answers[0] ? `${answers[0].answer} (${answers[0].percentage}%)` : '-';
+                                const top2 = answers[1] ? `${answers[1].answer} (${answers[1].percentage}%)` : '-';
+                                // Aplica estilo zebrado
+                                const rowStyle = index % 2 === 0 ? pdfStyles.tableTopTwoRow : pdfStyles.tableTopTwoRowAlt;
+                                
+                                return (
+                                    <View key={questionText} style={rowStyle} wrap={false}>
+                                        <Text style={[pdfStyles.tableTopTwoCol, { width: '50%', fontWeight: 'bold' }]}>{questionText}</Text>
+                                        <Text style={[pdfStyles.tableTopTwoCol, { width: '25%' }]}>{top1}</Text>
+                                        <Text style={[pdfStyles.tableTopTwoCol, { width: '25%' }]}>{top2}</Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    );
+                };
+
+                // *** DOCUMENTO PDF ATUALIZADO ***
                 DebriefingPDFDocument = ({ data = {}, images = {} }) => {
-                    const groupedInscritos = data.allLeadsAnswers || {};
-                    const groupedCompradores = data.buyersAnswers || {};
+                    // Mapeia os novos nomes de props para os nomes antigos usados no PDF
+                    const groupedPublico = data.perfilPublicoData || {};
+                    const groupedInscritos = data.perfilInscritosData || {};
+                    const groupedCompradores = data.perfilCompradoresData || {};
+                    
                     const resumo = data.resumo || {};
-                    const conclusoes = data.conclusoes || {};
                     const fontes = data.fontes || [];
                     const tabelaMestra = data.tabelaMestra || [];
                     const automatedInsights = data.automatedInsights || { escalar: [], ajustar: []};
-                    
+                    const topTwoAnswersData = data.topTwoAnswersData || [];
+                    const profileQuestionLists = data.profileQuestionLists || {};
+
                     // Regex para remover caracteres não-ASCII (como emojis)
                     const stripEmojis = (str) => str ? str.replace(/[^\x00-\x7F]/g, "").trim() : "";
+                    
+                    // Helper para renderizar seções de perfil
+                    const renderProfilePage = (title, profileData, chartImages) => (
+                        <Page size="A4" style={pdfStyles.page} wrap>
+                            <Text style={pdfStyles.sectionTitle}>{title}</Text>
+                            {Object.keys(profileData).length > 0 ? Object.keys(profileData).map((pergunta) => (
+                                <View key={pergunta} style={pdfStyles.profileSection} wrap={false}>
+                                    <Text style={pdfStyles.profileQuestion}>{pergunta}</Text>
+                                    <View style={pdfStyles.profileContent}>
+                                        <View style={pdfStyles.profileList}>
+                                            {(profileData[pergunta] || []).sort((a,b) => b.count - a.count).map((r, i) => (
+                                                <View key={i} style={pdfStyles.profileAnswerRow}>
+                                                    <Text style={pdfStyles.profileAnswerLabel}>{r.answer}</Text>
+                                                    <Text>{r.percentage}%</Text>
+                                                </View>
+                                            ))}
+                                        </View>
+                                        {chartImages?.[pergunta] && (
+                                            <Image style={pdfStyles.profileChart} src={chartImages[pergunta]} />
+                                        )}
+                                    </View>
+                                </View>
+                            )) : <Text style={{fontSize: 10, color: 'grey'}}>Nenhum dado de perfil encontrado.</Text>}
+                            <Text style={pdfStyles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
+                        </Page>
+                    );
+
 
                     return (
                         <Document>
@@ -156,55 +237,21 @@ const PDFButtonWrapper = ({
                                 <Text style={pdfStyles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
                             </Page>
 
-                            {/* Página 5: Perfil dos Inscritos */}
-                            <Page size="A4" style={pdfStyles.page} wrap>
-                                <Text style={pdfStyles.sectionTitle}>Perfil dos Inscritos</Text>
-                                {Object.keys(groupedInscritos).length > 0 ? Object.keys(groupedInscritos).map((pergunta, index) => (
-                                <View key={pergunta} style={pdfStyles.profileSection}>
-                                    <Text style={pdfStyles.profileQuestion}>{pergunta}</Text>
-                                    <View style={pdfStyles.profileContent} wrap={false}>
-                                    <View style={pdfStyles.profileList}>
-                                        {(groupedInscritos[pergunta] || []).map((r, i) => (
-                                        <View key={i} style={pdfStyles.profileAnswerRow}>
-                                            <Text style={pdfStyles.profileAnswerLabel}>{r.answer}</Text>
-                                            <Text>{r.percentage}%</Text>
-                                        </View>
-                                        ))}
-                                    </View>
-                                    {images.perfilInscritos?.[pergunta] && (
-                                        <Image style={pdfStyles.profileChart} src={images.perfilInscritos[pergunta]} />
-                                    )}
-                                    </View>
+                            {/* *** NOVAS PÁGINAS DE PERFIL *** */}
+                            {renderProfilePage("Análise do Perfil Público", groupedPublico, images.perfilPublico)}
+                            {renderProfilePage("Análise do Perfil de Inscritos", groupedInscritos, images.perfilInscritos)}
+                            {renderProfilePage("Análise do Perfil de Compradores", groupedCompradores, images.perfilCompradores)}
+
+                            {/* *** NOVA PÁGINA: TOP 2 RESPOSTAS *** */}
+                             <Page size="A4" style={pdfStyles.page} wrap>
+                                <View style={pdfStyles.section}>
+                                    <Text style={pdfStyles.sectionTitle}>Resumo: Top 2 Respostas por Pergunta</Text>
+                                    <PdfTopTwoTable data={topTwoAnswersData} questions={profileQuestionLists} />
                                 </View>
-                                )) : <Text style={{fontSize: 10, color: 'grey'}}>Nenhum dado de perfil encontrado.</Text>}
                                 <Text style={pdfStyles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
                             </Page>
 
-                            {/* Página 6: Perfil dos Compradores */}
-                            <Page size="A4" style={pdfStyles.page} wrap>
-                                <Text style={pdfStyles.sectionTitle}>Perfil dos Compradores</Text>
-                                {Object.keys(groupedCompradores).length > 0 ? Object.keys(groupedCompradores).map((pergunta, index) => (
-                                <View key={pergunta} style={pdfStyles.profileSection}>
-                                    <Text style={pdfStyles.profileQuestion}>{pergunta}</Text>
-                                    <View style={pdfStyles.profileContent} wrap={false}>
-                                        <View style={pdfStyles.profileList}>
-                                        {(groupedCompradores[pergunta] || []).map((r, i) => (
-                                            <View key={i} style={pdfStyles.profileAnswerRow}>
-                                            <Text style={pdfStyles.profileAnswerLabel}>{r.answer}</Text>
-                                            <Text>{r.percentage}%</Text>
-                                            </View>
-                                        ))}
-                                        </View>
-                                        {images.perfilCompradores?.[pergunta] && (
-                                        <Image style={pdfStyles.profileChart} src={images.perfilCompradores[pergunta]} />
-                                        )}
-                                    </View>
-                                </View>
-                                )) : <Text style={{fontSize: 10, color: 'grey'}}>Nenhum dado de perfil encontrado.</Text>}
-                                <Text style={pdfStyles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
-                            </Page>
-
-                            {/* Página 7: Insights e Conclusões */}
+                            {/* Página Final: Insights */}
                             <Page size="A4" style={pdfStyles.page} wrap>
                                 <View style={pdfStyles.section}><Text style={pdfStyles.sectionTitle}>Insights Automatizados</Text>
                                     <Text style={[pdfStyles.profileQuestion, { color: '#059669' }]}>Pontos a Escalar:</Text>
@@ -212,7 +259,6 @@ const PDFButtonWrapper = ({
                                         {automatedInsights.escalar?.length > 0 ? automatedInsights.escalar.map((insight, i) => (
                                             <View key={i} style={pdfStyles.insightItem}>
                                                 <Text style={{ color: '#059669', marginRight: 5 }}>•</Text>
-                                                {/* AQUI ESTÁ A CORREÇÃO: Remove emojis do texto */}
                                                 <Text style={pdfStyles.insightText}>{stripEmojis(insight)}</Text>
                                             </View>
                                         )) : <Text style={{fontSize: 10, color: 'grey'}}>Nenhuma sugestão.</Text>}
@@ -222,14 +268,12 @@ const PDFButtonWrapper = ({
                                         {automatedInsights.ajustar?.length > 0 ? automatedInsights.ajustar.map((insight, i) => (
                                             <View key={i} style={pdfStyles.insightItem}>
                                                 <Text style={{ color: '#DC2626', marginRight: 5 }}>•</Text>
-                                                {/* AQUI ESTÁ A CORREÇÃO: Remove emojis do texto */}
                                                 <Text style={pdfStyles.insightText}>{stripEmojis(insight)}</Text>
                                             </View>
                                         )) : <Text style={{fontSize: 10, color: 'grey'}}>Nenhuma sugestão.</Text>}
                                     </View>
                                 </View>
-                                <View style={pdfStyles.section}><Text style={pdfStyles.sectionTitle}>Conclusões Estratégicas (Sua Análise)</Text><Text style={pdfStyles.profileQuestion}>O que funcionou...</Text><Text style={pdfStyles.textAreaPDF}>{conclusoes.funcionou || 'Nenhuma análise preenchida.'}</Text><Text style={[pdfStyles.profileQuestion, {marginTop: 10}]}>O que ajustar...</Text><Text style={pdfStyles.textAreaPDF}>{conclusoes.ajustar || 'Nenhuma análise preenchida.'}</Text><Text style={[pdfStyles.profileQuestion, {marginTop: 10}]}>O que testar...</Text><Text style={pdfStyles.textAreaPDF}>{conclusoes.testar || 'Nenhuma análise preenchida.'}</Text></View>
-                                <View style={pdfStyles.section} break><Text style={pdfStyles.sectionTitle}>Briefing para Próximo Lançamento</Text><Text style={pdfStyles.profileQuestion}>Metas...</Text><Text style={pdfStyles.textAreaPDF}>{conclusoes.briefing_metas || 'Nenhuma meta preenchida.'}</Text><Text style={[pdfStyles.profileQuestion, {marginTop: 10}]}>Diretrizes...</Text><Text style={pdfStyles.textAreaPDF}>{conclusoes.briefing_estrategia || 'Nenhuma diretriz preenchida.'}</Text></View>
+                                {/* Removido a seção "Conclusões" pois não é passada por 'page.jsx' */}
                                 <Text style={pdfStyles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
                             </Page>
                         </Document>
@@ -324,4 +368,3 @@ const PDFButtonWrapper = ({
 };
 
 export default PDFButtonWrapper;
-
