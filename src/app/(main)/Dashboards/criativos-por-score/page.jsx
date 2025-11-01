@@ -233,7 +233,7 @@ export default function CriativosPorScorePage() {
                 disabled={isDisabled} 
                 className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2"
             >
-                 {!isClientSelected ? (
+                {!isClientSelected ? (
                     <option value="" disabled>Selecione um cliente</option>
                 ) : isLoadingLaunches ? (
                     <option value="" disabled>Carregando...</option>
@@ -299,7 +299,7 @@ export default function CriativosPorScorePage() {
     const isPageLoading = loading || isLoadingLaunches;
 
     return (
-         // Padding principal ajustado para responsividade
+        // Padding principal ajustado para responsividade
         <div className="px-2 py-4 sm:px-4 sm:py-6 lg:px-6 lg:py-8">
             <Toaster position="top-center" /> 
             
@@ -314,7 +314,7 @@ export default function CriativosPorScorePage() {
                         <KpiCard title="Taxa de Check-in" value={generalKpis.taxa_checkin} icon={Percent} />
                     </div>
                 </div>
-                 {/* Removido bg-gray, padding agora é p-2 sm:p-4 */}
+                {/* Removido bg-gray, padding agora é p-2 sm:p-4 */}
                 <div className="dark:bg-gray-800/50 p-2 sm:p-4 rounded-lg">
                     <h3 className="font-bold text-center text-gray-600 dark:text-gray-300 mb-3 text-sm sm:text-base">Totais da Seleção ({trafficType})</h3>
                     <div className="grid grid-cols-3 gap-2 sm:gap-4"> {/* Reduzido gap no mobile */}
@@ -345,15 +345,15 @@ export default function CriativosPorScorePage() {
                 {isPageLoading ? (
                     <Spinner /> 
                 ) : error ? (
-                     <div className="text-center p-8 text-red-500 dark:text-red-400">
+                    <div className="text-center p-8 text-red-500 dark:text-red-400">
                         Erro ao carregar dados: {error}
                     </div>
                 ) : !selectedLaunch ? (
-                     <div className="text-center p-8 text-gray-500 dark:text-gray-400">
+                    <div className="text-center p-8 text-gray-500 dark:text-gray-400">
                         Por favor, selecione um cliente e um lançamento para ver a análise.
                     </div>
                 ) : currentData.length === 0 ? (
-                     <div className="text-center p-8 text-gray-500 dark:text-gray-400">
+                    <div className="text-center p-8 text-gray-500 dark:text-gray-400">
                         Nenhum dado encontrado para este tipo de tráfego.
                     </div>
                 ) : (
@@ -418,6 +418,7 @@ export default function CriativosPorScorePage() {
                                                                                 <td className="px-3 py-2"><ScoreDistributionDisplay distribution={detail.score_distribution} /></td>
                                                                             </tr>
                                                                         );
+
                                                                     })}
                                                                 </tbody>
                                                             </table>

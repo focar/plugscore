@@ -29,7 +29,7 @@ export default function Sidebar({ userProfile }) {
             { name: 'Perfil de Score', href: '/Dashboards/perfil-de-score' },
             { name: 'Perfil de MQL', href: '/Dashboards/perfil-de-mql' },
             { name: 'Compradores', href: '/Dashboards/origem-compradores' },
-            { name: 'Análise de IA', href: '/Dashboards/analise-ia' },
+            { name: 'Análise por IA', href: '/Dashboards/analise-ia' },
             { name: 'Debriefing de Conversão', href: '/Dashboards/debriefing-conversao' },
         ],
         OPERACIONAL: [
@@ -94,7 +94,7 @@ export default function Sidebar({ userProfile }) {
                     <div>
                         <h1 className="text-[#4fc0db] text-xl font-bold">PlugScore</h1>
                         <div className="text-xs text-gray-400 flex items-center gap-3">
-                            <span>v 1.0</span><span className="font-bold">by Focar</span>
+                            <span>v 2.0</span><span className="font-bold">by Focar</span>
                         </div>
                     </div>
                 </Link>

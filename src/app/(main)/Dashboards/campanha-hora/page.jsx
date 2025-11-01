@@ -104,8 +104,19 @@ export default function AnaliseCampanhaPage() {
     const [isLoadingData, setIsLoadingData] = useState(false); 
     const [data, setData] = useState(null);
     const [expandedRows, setExpandedRows] = useState({}); 
-    const [filters, setFilters] = useState({ source: 'all', medium: 'all', campaign: 'all', content: 'all', term: 'all' });
-    const [options, setOptions] = useState({ sources: [], mediums: [], campaigns: [], contents: [], terms: [] });
+    
+    // --- LÓGICA DE FILTRO V2.0 (INVERTIDA) ---
+    // Ordem de hierarquia para renderização e lógica
+    const filterHierarchy = ['medium', 'source', 'campaign', 'content', 'term'];
+
+    // Estado inicial dos filtros
+    const initialFilters = { medium: 'all', source: 'all', campaign: 'all', content: 'all', term: 'all' };
+    const [filters, setFilters] = useState(initialFilters);
+    
+    // Estado inicial das opções
+    const initialOptions = { mediums: [], sources: [], campaigns: [], contents: [], terms: [] };
+    const [options, setOptions] = useState(initialOptions);
+    // --- FIM LÓGICA V2.0 ---
 
     const toggleRow = (hora) => setExpandedRows(prev => ({ ...prev, [hora]: !prev[hora] }));
 
@@ -117,8 +128,8 @@ export default function AnaliseCampanhaPage() {
 
         if (isAllClients) {
             setLaunches([]); setSelectedLaunch(''); setIsLoadingLaunches(false); setData(null); setIsLoadingData(false);
-            setFilters({ source: 'all', medium: 'all', campaign: 'all', content: 'all', term: 'all' });
-            setOptions({ sources: [], mediums: [], campaigns: [], contents: [], terms: [] });
+            setFilters(initialFilters);
+            setOptions(initialOptions);
             return;
         }
 
@@ -142,17 +153,17 @@ export default function AnaliseCampanhaPage() {
 
         const launchSelector = (
              <select 
-                value={selectedLaunch} 
-                onChange={e => setSelectedLaunch(e.target.value)} 
-                disabled={isDisabled} 
-                className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2"
-            >
+                 value={selectedLaunch} 
+                 onChange={e => setSelectedLaunch(e.target.value)} 
+                 disabled={isDisabled} 
+                 className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2"
+             >
                  {!isClientSelected ? (<option value="" disabled>Selecione um cliente</option>) 
                  : isLoadingLaunches ? (<option value="" disabled>Carregando...</option>) 
                  : launches.length === 0 ? (<option value="" disabled>Nenhum lançamento</option>) 
                  : (<option value="">Selecione um lançamento</option>)}
-                {launches.map(l => <option key={l.id} value={l.id}>{l.codigo} ({l.status})</option>)}
-            </select>
+                 {launches.map(l => <option key={l.id} value={l.id}>{l.codigo} ({l.status})</option>)}
+             </select>
         );
         setHeaderContent({ title: 'Análise de Campanha por Hora', controls: launchSelector });
         return () => setHeaderContent({ title: '', controls: null });
@@ -165,41 +176,68 @@ export default function AnaliseCampanhaPage() {
         try {
             const { data, error } = await supabase.rpc(rpcName, { ...params, p_client_id: clientIdToSend });
             if (error) { console.error(`Erro ao buscar ${rpcName}:`, error.message); return []; }
+            // O 'Object.keys(d)[0]' assume que o RPC sempre retorna uma coluna (ex: 'utm_medium')
             return data?.map(d => d[Object.keys(d)[0]]).filter(Boolean) || []; 
         } catch (err) { console.error(`Exceção ao buscar ${rpcName}:`, err); return []; }
     }, [selectedLaunch, supabase, userProfile, selectedClientId]); 
 
-    // Efeitos para carregar opções dos filtros
+    
+    // --- EFEITOS DE FILTRO V2.0 (LÓGICA INVERTIDA) ---
+    
+    // Nível 1: Medium (depende do Lançamento)
     useEffect(() => {
-        if (!selectedLaunch) { setOptions(o => ({...o, sources: []})); setFilters(f => ({...f, source:'all', medium:'all', campaign:'all', content:'all', term:'all'})); return; }
-        setFilters(f => ({...f, source:'all', medium:'all', campaign:'all', content:'all', term:'all'})); 
-        fetchFilterOptions('get_utm_sources', { p_launch_id: selectedLaunch })
-            .then(sources => setOptions({ sources, mediums: [], campaigns: [], contents: [], terms: [] }));
+        if (!selectedLaunch) { 
+            setOptions(initialOptions);
+            setFilters(initialFilters); 
+            return; 
+        }
+        setFilters(initialFilters); // Reseta filtros ao trocar de lançamento
+        fetchFilterOptions('get_utm_mediums', { p_launch_id: selectedLaunch })
+            .then(mediums => setOptions({ ...initialOptions, mediums }));
     }, [selectedLaunch, fetchFilterOptions]);
 
+    // Nível 2: Source (depende do Medium)
     useEffect(() => {
-        if (!selectedLaunch || filters.source === 'all') { setOptions(p => ({ ...p, mediums: [], campaigns: [], contents: [], terms: [] })); return; }
-        fetchFilterOptions('get_utm_mediums', { p_launch_id: selectedLaunch, p_source: filters.source })
-            .then(mediums => setOptions(p => ({ ...p, mediums, campaigns: [], contents: [], terms: [] })));
-    }, [filters.source, selectedLaunch, fetchFilterOptions]);
+        if (!selectedLaunch || filters.medium === 'all') { 
+            setOptions(p => ({ ...p, sources: [], campaigns: [], contents: [], terms: [] })); 
+            return; 
+        }
+        fetchFilterOptions('get_utm_sources', { p_launch_id: selectedLaunch, p_medium: filters.medium })
+            .then(sources => setOptions(p => ({ ...p, sources, campaigns: [], contents: [], terms: [] })));
+    }, [filters.medium, selectedLaunch, fetchFilterOptions]);
     
+    // Nível 3: Campaign (depende do Medium e Source)
     useEffect(() => {
-        if (!selectedLaunch || filters.medium === 'all') { setOptions(p => ({ ...p, campaigns: [], contents: [], terms: [] })); return; }
-        fetchFilterOptions('get_utm_campaigns', { p_launch_id: selectedLaunch, p_source: filters.source, p_medium: filters.medium })
+        if (!selectedLaunch || filters.source === 'all') { 
+            setOptions(p => ({ ...p, campaigns: [], contents: [], terms: [] })); 
+            return; 
+        }
+        fetchFilterOptions('get_utm_campaigns', { p_launch_id: selectedLaunch, p_medium: filters.medium, p_source: filters.source })
              .then(campaigns => setOptions(p => ({ ...p, campaigns, contents: [], terms: [] })));
-    }, [filters.medium, filters.source, selectedLaunch, fetchFilterOptions]);
+    }, [filters.source, filters.medium, selectedLaunch, fetchFilterOptions]);
     
+    // Nível 4: Content (depende do Medium, Source e Campaign)
     useEffect(() => {
-        if (!selectedLaunch || filters.campaign === 'all') { setOptions(p => ({ ...p, contents: [], terms: [] })); return; }
-        fetchFilterOptions('get_utm_contents', { p_launch_id: selectedLaunch, p_source: filters.source, p_medium: filters.medium, p_campaign: filters.campaign })
+        if (!selectedLaunch || filters.campaign === 'all') { 
+            setOptions(p => ({ ...p, contents: [], terms: [] })); 
+            return; 
+        }
+        fetchFilterOptions('get_utm_contents', { p_launch_id: selectedLaunch, p_medium: filters.medium, p_source: filters.source, p_campaign: filters.campaign })
              .then(contents => setOptions(p => ({ ...p, contents, terms: [] })));
-    }, [filters.campaign, filters.medium, filters.source, selectedLaunch, fetchFilterOptions]);
+    }, [filters.campaign, filters.source, filters.medium, selectedLaunch, fetchFilterOptions]);
     
+    // Nível 5: Term (depende do Medium, Source, Campaign e Content)
     useEffect(() => {
-        if (!selectedLaunch || filters.content === 'all') { setOptions(p => ({ ...p, terms: [] })); return; }
-        fetchFilterOptions('get_utm_terms', { p_launch_id: selectedLaunch, p_source: filters.source, p_medium: filters.medium, p_campaign: filters.campaign, p_content: filters.content })
+        if (!selectedLaunch || filters.content === 'all') { 
+            setOptions(p => ({ ...p, terms: [] })); 
+            return; 
+        }
+        fetchFilterOptions('get_utm_terms', { p_launch_id: selectedLaunch, p_medium: filters.medium, p_source: filters.source, p_campaign: filters.campaign, p_content: filters.content })
              .then(terms => setOptions(p => ({ ...p, terms })));
-    }, [filters.content, filters.campaign, filters.medium, filters.source, selectedLaunch, fetchFilterOptions]);
+    }, [filters.content, filters.campaign, filters.source, filters.medium, selectedLaunch, fetchFilterOptions]);
+    
+    // --- FIM DOS EFEITOS DE FILTRO V2.0 ---
+
 
     // Busca principal dos dados (com trava)
     const fetchData = useCallback(async () => {
@@ -209,8 +247,8 @@ export default function AnaliseCampanhaPage() {
             const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id;
             const { data: result, error } = await supabase.rpc('get_campaign_hourly_analysis', {
                 p_launch_id: selectedLaunch, p_client_id: clientIdToSend,
+                p_utm_medium: filters.medium === 'all' ? null : filters.medium, // Ordem trocada
                 p_utm_source: filters.source === 'all' ? null : filters.source,
-                p_utm_medium: filters.medium === 'all' ? null : filters.medium,
                 p_utm_campaign: filters.campaign === 'all' ? null : filters.campaign,
                 p_utm_content: filters.content === 'all' ? null : filters.content,
                 p_utm_term: filters.term === 'all' ? null : filters.term,
@@ -222,7 +260,7 @@ export default function AnaliseCampanhaPage() {
              toast.error(`Erro ao carregar dados: ${err.message}`); 
              setData(null);
         } finally { setIsLoadingData(false); }
-    }, [selectedLaunch, filters.source, filters.medium, filters.campaign, filters.content, filters.term, supabase, userProfile, selectedClientId]);
+    }, [selectedLaunch, filters.medium, filters.source, filters.campaign, filters.content, filters.term, supabase, userProfile, selectedClientId]);
 
     // Dispara busca de dados
     useEffect(() => { fetchData(); }, [fetchData]);
@@ -233,22 +271,31 @@ export default function AnaliseCampanhaPage() {
     const taxaCheckinGeral = (kpis && kpis.total_geral_inscricoes > 0) ? (kpis.total_geral_checkins / kpis.total_geral_inscricoes * 100) : 0;
     const taxaCheckinFiltrado = (kpis && kpis.total_filtrado_inscricoes > 0) ? (kpis.total_filtrado_checkins / kpis.total_filtrado_inscricoes * 100) : 0;
     
-    // Handler para mudança de filtros
+    // --- HANDLER DE FILTRO V2.0 (LÓGICA INVERTIDA) ---
     const handleFilterChange = (level, value) => {
          setFilters(prev => {
-            const newFilters = { ...prev, [level]: value };
-            if (level === 'source') {
-                newFilters.medium = 'all'; newFilters.campaign = 'all'; newFilters.content = 'all'; newFilters.term = 'all';
-            } else if (level === 'medium') {
-                newFilters.campaign = 'all'; newFilters.content = 'all'; newFilters.term = 'all';
-            } else if (level === 'campaign') {
-                newFilters.content = 'all'; newFilters.term = 'all';
-            } else if (level === 'content') {
-                newFilters.term = 'all';
-            }
-            return newFilters;
-        });
+             const newFilters = { ...prev, [level]: value };
+             
+             // Reseta filtros "filhos" com base na nova hierarquia
+             if (level === 'medium') {
+                 newFilters.source = 'all'; 
+                 newFilters.campaign = 'all'; 
+                 newFilters.content = 'all'; 
+                 newFilters.term = 'all';
+             } else if (level === 'source') {
+                 newFilters.campaign = 'all'; 
+                 newFilters.content = 'all'; 
+                 newFilters.term = 'all';
+             } else if (level === 'campaign') {
+                 newFilters.content = 'all'; 
+                 newFilters.term = 'all';
+             } else if (level === 'content') {
+                 newFilters.term = 'all';
+             }
+             return newFilters;
+         });
     };
+    // --- FIM DO HANDLER V2.0 ---
 
     // Condição de loading principal
     const isPageLoading = isLoadingData || isLoadingLaunches;
@@ -260,7 +307,6 @@ export default function AnaliseCampanhaPage() {
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-4"> 
                 <div className="dark:bg-gray-800/50 p-2 sm:p-4 rounded-lg">
                     <h3 className="font-bold text-center text-gray-600 dark:text-gray-300 mb-3 text-sm sm:text-base">Totais do Lançamento</h3>
-                    {/* *** CORREÇÃO: grid-cols-1 no mobile, sm:grid-cols-3 em telas maiores *** */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3"> 
                         <KpiCard title="Inscrições" value={(kpis?.total_geral_inscricoes ?? 0).toLocaleString('pt-BR')} icon={FaGlobe} />
                         <KpiCard title="Check-ins" value={(kpis?.total_geral_checkins ?? 0).toLocaleString('pt-BR')} icon={FaBullseye} />
@@ -269,7 +315,6 @@ export default function AnaliseCampanhaPage() {
                 </div>
                 <div className="dark:bg-gray-800/50 p-2 sm:p-4 rounded-lg">
                    <h3 className="font-bold text-center text-gray-600 dark:text-gray-300 mb-3 text-sm sm:text-base">Totais do Filtro Atual</h3>
-                    {/* *** CORREÇÃO: grid-cols-1 no mobile, sm:grid-cols-3 em telas maiores *** */}
                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3"> 
                        <KpiCard title="Inscrições" value={(kpis?.total_filtrado_inscricoes ?? 0).toLocaleString('pt-BR')} icon={FaUsers} />
                        <KpiCard title="Check-ins" value={(kpis?.total_filtrado_checkins ?? 0).toLocaleString('pt-BR')} icon={FaUserCheck} />
@@ -278,16 +323,20 @@ export default function AnaliseCampanhaPage() {
                 </div>
             </section>
             
-            {/* Seção de Filtros */}
+            {/* --- Seção de Filtros V2.0 (ORDEM INVERTIDA) --- */}
             <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md">
                 <div className="flex items-center gap-2 mb-4">
                     <FaFilter className="text-blue-600 dark:text-blue-400"/> 
                     <h2 className="text-base sm:text-lg font-semibold text-gray-700 dark:text-gray-200">Filtros de Análise</h2>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-                    {Object.keys(filters).map((key, index) => {
-                        const previousKey = Object.keys(filters)[index-1];
+                    
+                    {/* Renderiza filtros na ordem da hierarquia V2.0 */}
+                    {filterHierarchy.map((key, index) => {
+                        const previousKey = filterHierarchy[index-1];
+                        // A desabilitação depende do 'previousKey' na hierarquia
                         const isDisabled = isPageLoading || (index > 0 && filters[previousKey] === 'all') || !selectedLaunch; 
+                        
                         return (
                             <div key={key}>
                                 <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 capitalize">{`UTM ${key}`}</label>
@@ -297,6 +346,7 @@ export default function AnaliseCampanhaPage() {
                                     className="w-full pl-2 pr-8 sm:pl-3 sm:pr-10 py-1.5 sm:py-2 text-sm border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded-md disabled:opacity-50" 
                                     disabled={isDisabled}>
                                     <option value="all">Todos</option>
+                                    {/* O nome da option (ex: 'mediums', 'sources') é pego dinamicamente */}
                                     {(options[`${key}s`] || []).map(o => <option key={o} value={o}>{o}</option>)}
                                 </select>
                             </div>
@@ -397,4 +447,3 @@ export default function AnaliseCampanhaPage() {
         </div>
     );
 }
-

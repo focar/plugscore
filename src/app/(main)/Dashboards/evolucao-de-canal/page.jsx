@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useContext, Fragment } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AppContext } from '@/context/AppContext';
-import { subDays, startOfDay, endOfDay, format, parseISO, isWithinInterval } from 'date-fns'; // Importa 'isWithinInterval'
+import { subDays, startOfDay, endOfDay, format, parseISO, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { FaSpinner, FaFilter, FaUsers, FaUserCheck, FaChevronDown, FaGlobe, FaBullseye, FaPercent } from 'react-icons/fa';
@@ -32,13 +32,18 @@ export default function EvolucaoCanalPage() {
     const [period, setPeriod] = useState('Hoje');
     const [data, setData] = useState(null);
     const [loadingLaunches, setLoadingLaunches] = useState(true);
-    const [loadingData, setLoadingData] = useState(false); // Inicia como false
+    const [loadingData, setLoadingData] = useState(false);
     const [expandedRows, setExpandedRows] = useState(new Set());
     
-    const [filters, setFilters] = useState({ source: 'all', medium: 'all', campaign: 'all', content: 'all', term: 'all' });
-    const [options, setOptions] = useState({ sources: [], mediums: [], campaigns: [], contents: [], terms: [] });
+    // --- LÓGICA DE FILTRO V2.0 (INVERTIDA) ---
+    const filterHierarchy = ['medium', 'source', 'campaign', 'content', 'term'];
+    const initialFilters = { medium: 'all', source: 'all', campaign: 'all', content: 'all', term: 'all' };
+    const initialOptions = { mediums: [], sources: [], campaigns: [], contents: [], terms: [] };
 
-    // Define o clientId que será usado nas queries
+    const [filters, setFilters] = useState(initialFilters);
+    const [options, setOptions] = useState(initialOptions);
+    // --- FIM LÓGICA V2.0 ---
+
     const clientIdToSend = userProfile?.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile?.cliente_id;
 
     const toggleRow = (key) => {
@@ -53,11 +58,10 @@ export default function EvolucaoCanalPage() {
         });
     };
 
-    // Efeito para buscar os lançamentos (dropdown principal)
+    // Efeito para buscar os lançamentos
     useEffect(() => {
-        if (!userProfile) return;
+        if (!userProfile || clientIdToSend === undefined) return; 
 
-        // Se for admin e "Todos os Clientes" estiver selecionado, não carregar lançamentos.
         const isAllClients = userProfile.role === 'admin' && selectedClientId === 'all';
         
         if (isAllClients) {
@@ -65,12 +69,11 @@ export default function EvolucaoCanalPage() {
             setSelectedLaunchId(''); 
             setLoadingLaunches(false); 
             setData(null); 
-            setFilters({ source: 'all', medium: 'all', campaign: 'all', content: 'all', term: 'all' }); 
-            setOptions({ sources: [], mediums: [], campaigns: [], contents: [], terms: [] }); 
+            setFilters(initialFilters); 
+            setOptions(initialOptions); 
             return; 
         }
         
-        // Se um cliente específico for selecionado, busca os lançamentos
         setLoadingLaunches(true);
         setData(null); 
         setLoadingData(true); 
@@ -84,15 +87,13 @@ export default function EvolucaoCanalPage() {
                   return; 
               }
               if (data) {
-                  const filtered = data.filter(launch => launch.status !== 'Planejado');
-                  const sorted = filtered.sort((a, b) => {
+                  const allLaunches = data; 
+                  const sorted = allLaunches.sort((a, b) => {
                       if (a.status === 'Em Andamento' && b.status !== 'Em Andamento') return -1;
                       if (b.status === 'Em Andamento' && a.status !== 'Em Andamento') return 1;
-                      return a.nome.localeCompare(b.nome);
+                      return (a.codigo || a.nome).localeCompare(b.codigo || b.nome);
                   });
                   setLaunches(sorted);
-                  
-                  // Não auto-seleciona. Força o usuário a escolher.
                   setSelectedLaunchId(''); 
               }
           })
@@ -105,9 +106,9 @@ export default function EvolucaoCanalPage() {
               setLoadingLaunches(false);
               setLoadingData(false); 
           });
-    }, [userProfile, selectedClientId, supabase]); 
+    }, [userProfile, selectedClientId, supabase, clientIdToSend]); 
 
-    // Efeito para atualizar o Header (Dropdown de Lançamento)
+    // Efeito para atualizar o Header
     useEffect(() => {
         const isClientSelected = !(userProfile?.role === 'admin' && selectedClientId === 'all');
         const isDisabled = loadingLaunches || !isClientSelected;
@@ -121,7 +122,9 @@ export default function EvolucaoCanalPage() {
             >
                 {!isClientSelected ? (
                     <option value="" disabled>Selecione um cliente</option>
-                ) : launches.length === 0 && !loadingLaunches ? ( 
+                ) : loadingLaunches ? ( 
+                    <option value="" disabled>Carregando...</option>
+                ) : launches.length === 0 ? ( 
                     <option value="" disabled>Nenhum lançamento</option>
                 ) : (
                     <option value="">Selecione um lançamento</option>
@@ -136,9 +139,7 @@ export default function EvolucaoCanalPage() {
 
     // Função centralizada para buscar opções de filtro
     const fetchFilterOptions = useCallback(async (rpcName, params) => {
-        if (!params || !params.p_launch_id) {
-            return [];
-        }
+        if (!params || !params.p_launch_id) return [];
         try {
             const { data, error } = await supabase.rpc(rpcName, params);
             if (error) {
@@ -155,103 +156,55 @@ export default function EvolucaoCanalPage() {
     }, [supabase]); 
 
     
-    // --- EFEITOS PARA CARREGAR OPÇÕES DOS FILTROS ---
-
-    // 1. Busca 'sources'
+    // --- EFEITOS DE FILTRO V2.0 ---
     useEffect(() => {
         if (!selectedLaunchId || clientIdToSend === undefined) {
-            setOptions(prev => ({ ...prev, sources: [] }));
-            setFilters(prev => ({ ...prev, source: 'all', medium: 'all', campaign: 'all', content: 'all', term: 'all' }));
+            setOptions(initialOptions);
+            setFilters(initialFilters);
             return;
         }
-        setFilters(prev => ({ ...prev, source: 'all', medium: 'all', campaign: 'all', content: 'all', term: 'all' }));
+        setFilters(initialFilters); 
+        fetchFilterOptions('get_utm_mediums', { p_launch_id: selectedLaunchId, p_client_id: clientIdToSend })
+            .then(mediums => setOptions({ ...initialOptions, mediums }));
+    }, [selectedLaunchId, clientIdToSend, fetchFilterOptions]);
 
-        fetchFilterOptions('get_utm_sources', { p_launch_id: selectedLaunchId, p_client_id: clientIdToSend })
-            .then(sources => {
-                setOptions({ 
-                    sources: sources,
-                    mediums: [],
-                    campaigns: [],
-                    contents: [],
-                    terms: []
-                });
-            })
-            .catch(err => toast.error(`Erro ao carregar UTM Sources: ${err.message}`));
-    }, [selectedLaunchId, clientIdToSend, fetchFilterOptions]); 
-
-    // 2. Busca 'mediums'
-    useEffect(() => {
-        if (filters.source === 'all' || !selectedLaunchId || clientIdToSend === undefined) {
-            setOptions(p => ({ ...p, mediums: [], campaigns: [], contents: [], terms: [] }));
-            return;
-        }
-        fetchFilterOptions('get_utm_mediums', { 
-            p_launch_id: selectedLaunchId, 
-            p_client_id: clientIdToSend, 
-            p_source: filters.source 
-        })
-            .then(mediums => {
-                setOptions(p => ({ ...p, mediums: mediums, campaigns: [], contents: [], terms: [] }));
-            })
-            .catch(err => toast.error(`Erro ao carregar UTM Mediums: ${err.message}`));
-    }, [filters.source, selectedLaunchId, clientIdToSend, fetchFilterOptions]);
-
-    // 3. Busca 'campaigns'
     useEffect(() => {
         if (filters.medium === 'all' || !selectedLaunchId || clientIdToSend === undefined) {
+            setOptions(p => ({ ...p, sources: [], campaigns: [], contents: [], terms: [] }));
+            return;
+        }
+        fetchFilterOptions('get_utm_sources', { p_launch_id: selectedLaunchId, p_client_id: clientIdToSend, p_medium: filters.medium })
+            .then(sources => setOptions(p => ({ ...p, sources, campaigns: [], contents: [], terms: [] })));
+    }, [filters.medium, selectedLaunchId, clientIdToSend, fetchFilterOptions]);
+
+    useEffect(() => {
+        if (filters.source === 'all' || !selectedLaunchId || clientIdToSend === undefined) {
             setOptions(p => ({ ...p, campaigns: [], contents: [], terms: [] }));
             return;
         }
-        fetchFilterOptions('get_utm_campaigns', { 
-            p_launch_id: selectedLaunchId, 
-            p_client_id: clientIdToSend, 
-            p_source: filters.source, 
-            p_medium: filters.medium 
-        })
-            .then(campaigns => {
-                setOptions(p => ({ ...p, campaigns: campaigns, contents: [], terms: [] }));
-            })
-            .catch(err => toast.error(`Erro ao carregar UTM Campaigns: ${err.message}`));
-    }, [filters.medium, filters.source, selectedLaunchId, clientIdToSend, fetchFilterOptions]);
+        fetchFilterOptions('get_utm_campaigns', { p_launch_id: selectedLaunchId, p_client_id: clientIdToSend, p_medium: filters.medium, p_source: filters.source })
+            .then(campaigns => setOptions(p => ({ ...p, campaigns, contents: [], terms: [] })));
+    }, [filters.source, filters.medium, selectedLaunchId, clientIdToSend, fetchFilterOptions]);
     
-    // 4. Busca 'contents'
     useEffect(() => {
         if (filters.campaign === 'all' || !selectedLaunchId || clientIdToSend === undefined) {
             setOptions(p => ({ ...p, contents: [], terms: [] }));
             return;
         }
-        fetchFilterOptions('get_utm_contents', { 
-            p_launch_id: selectedLaunchId, 
-            p_client_id: clientIdToSend, 
-            p_source: filters.source, 
-            p_medium: filters.medium, 
-            p_campaign: filters.campaign 
-        })
-            .then(contents => {
-                setOptions(p => ({ ...p, contents: contents, terms: [] }));
-            })
-            .catch(err => toast.error(`Erro ao carregar UTM Contents: ${err.message}`));
-    }, [filters.campaign, filters.medium, filters.source, selectedLaunchId, clientIdToSend, fetchFilterOptions]);
+        fetchFilterOptions('get_utm_contents', { p_launch_id: selectedLaunchId, p_client_id: clientIdToSend, p_medium: filters.medium, p_source: filters.source, p_campaign: filters.campaign })
+            .then(contents => setOptions(p => ({ ...p, contents, terms: [] })));
+    }, [filters.campaign, filters.source, filters.medium, selectedLaunchId, clientIdToSend, fetchFilterOptions]);
     
-    // 5. Busca 'terms'
     useEffect(() => {
         if (filters.content === 'all' || !selectedLaunchId || clientIdToSend === undefined) {
             setOptions(p => ({ ...p, terms: [] }));
             return;
         }
-        fetchFilterOptions('get_utm_terms', { 
-            p_launch_id: selectedLaunchId, 
-            p_client_id: clientIdToSend, 
-            p_source: filters.source, 
-            p_medium: filters.medium, 
-            p_campaign: filters.campaign, 
-            p_content: filters.content 
-        })
-            .then(terms => {
-                setOptions(p => ({ ...p, terms: terms }));
-            })
-            .catch(err => toast.error(`Erro ao carregar UTM Terms: ${err.message}`));
-    }, [filters.content, filters.campaign, filters.medium, filters.source, selectedLaunchId, clientIdToSend, fetchFilterOptions]);
+        fetchFilterOptions('get_utm_terms', { p_launch_id: selectedLaunchId, p_client_id: clientIdToSend, p_medium: filters.medium, p_source: filters.source, p_campaign: filters.campaign, p_content: filters.content })
+            .then(terms => setOptions(p => ({ ...p, terms })));
+    }, [filters.content, filters.campaign, filters.source, filters.medium, selectedLaunchId, clientIdToSend, fetchFilterOptions]);
+
+    // --- FIM DOS EFEITOS DE FILTRO V2.0 ---
 
     
     // --- FUNÇÃO PARA BUSCAR OS DADOS PRINCIPAIS ---
@@ -273,7 +226,7 @@ export default function EvolucaoCanalPage() {
                 case '30 Dias': startDate = startOfDay(subDays(now, 29)); break;
                 case '45 Dias': startDate = startOfDay(subDays(now, 44)); break;
                 case 'Todos': startDate = new Date(2000, 0, 1); break;
-                default: startDate = startOfDay(now); // Fallback
+                default: startDate = startOfDay(now);
             }
             
             const { data: result, error } = await supabase.rpc('get_evolution_dashboard_data', {
@@ -281,8 +234,8 @@ export default function EvolucaoCanalPage() {
                 p_start_date: startDate.toISOString(), 
                 p_end_date: endDate.toISOString(),
                 p_client_id: clientIdToSend, 
-                p_utm_source: filters.source === 'all' ? null : filters.source,
                 p_utm_medium: filters.medium === 'all' ? null : filters.medium,
+                p_utm_source: filters.source === 'all' ? null : filters.source,
                 p_utm_campaign: filters.campaign === 'all' ? null : filters.campaign,
                 p_utm_content: filters.content === 'all' ? null : filters.content,
                 p_utm_term: filters.term === 'all' ? null : filters.term,
@@ -298,33 +251,22 @@ export default function EvolucaoCanalPage() {
         finally { setLoadingData(false); }
     }, [selectedLaunchId, period, filters, supabase, userProfile, clientIdToSend]); 
 
-    // --- EFEITO PARA ACIONAR A BUSCA DE DADOS ---
-    useEffect(() => { 
-        fetchData(); 
-    }, [fetchData]); 
+    useEffect(() => { fetchData(); }, [fetchData]); 
     
     const kpis = data?.kpis;
-    
-    // *** CORREÇÃO: Corrigido erro de digitação de 'inscricoções' para 'inscricoes' ***
     const taxaCheckinGeral = (kpis && kpis.total_geral_inscricoes > 0) ? ((kpis.total_geral_checkins / kpis.total_geral_inscricoes) * 100) : 0;
     const taxaCheckinFiltrado = (kpis && kpis.total_filtrado_inscricoes > 0) ? ((kpis.total_filtrado_checkins / kpis.total_filtrado_inscricoes) * 100) : 0; 
 
-    // --- FUNÇÃO PARA LIDAR COM MUDANÇA DE FILTROS ---
+    // --- HANDLER DE FILTRO V2.0 ---
     const handleFilterChange = (level, value) => {
         setFilters(prev => {
             const newFilters = { ...prev, [level]: value };
-            if (level === 'source') {
-                newFilters.medium = 'all';
-                newFilters.campaign = 'all';
-                newFilters.content = 'all';
-                newFilters.term = 'all';
-            } else if (level === 'medium') {
-                newFilters.campaign = 'all';
-                newFilters.content = 'all';
-                newFilters.term = 'all';
+            if (level === 'medium') {
+                newFilters.source = 'all'; newFilters.campaign = 'all'; newFilters.content = 'all'; newFilters.term = 'all';
+            } else if (level === 'source') {
+                newFilters.campaign = 'all'; newFilters.content = 'all'; newFilters.term = 'all';
             } else if (level === 'campaign') {
-                newFilters.content = 'all';
-                newFilters.term = 'all';
+                newFilters.content = 'all'; newFilters.term = 'all';
             } else if (level === 'content') {
                 newFilters.term = 'all';
             }
@@ -332,11 +274,9 @@ export default function EvolucaoCanalPage() {
         });
     };
     
-    // Condição de loading principal
     const isLoading = loadingData || loadingLaunches;
     const showSpinner = loadingLaunches || (loadingData && !!selectedLaunchId);
 
-    // *** CORREÇÃO: Função para recalcular o período para filtrar a tabela ***
     const getDatesForPeriod = (periodStr) => {
         const now = new Date();
         let startDate, endDate = endOfDay(now);
@@ -347,18 +287,16 @@ export default function EvolucaoCanalPage() {
             case '14 Dias': startDate = startOfDay(subDays(now, 13)); break;
             case '30 Dias': startDate = startOfDay(subDays(now, 29)); break;
             case '45 Dias': startDate = startOfDay(subDays(now, 44)); break;
-            case 'Todos': startDate = new Date(2000, 0, 1); endDate = new Date(2100, 0, 1); break; // Data futura
+            case 'Todos': startDate = new Date(2000, 0, 1); endDate = new Date(2100, 0, 1); break;
             default: startDate = startOfDay(now);
         }
         return { startDate, endDate };
     }
 
-    // *** CORREÇÃO: Filtra os dados da tabela no front-end para corresponder ao período ***
     const filteredTableData = (data?.table_data ?? []).filter(row => {
         if (period === 'Todos') return true;
         const { startDate, endDate } = getDatesForPeriod(period);
         const rowDate = parseISO(row.dia);
-        // Usa isWithinInterval para checar se a data da linha está dentro do período
         return isWithinInterval(rowDate, { start: startDate, end: endDate });
     });
 
@@ -398,20 +336,25 @@ export default function EvolucaoCanalPage() {
                             ))}
                         </div>
                     </div>
+                    
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 w-full pt-4 border-t border-gray-200 dark:border-gray-700 mt-4">
-                        {Object.keys(filters).map((key, index) => (
-                            <div key={key}>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1 capitalize">{`UTM ${key}`}</label>
-                                <select 
-                                    value={filters[key]} 
-                                    onChange={e => handleFilterChange(key, e.target.value)}
-                                    className="w-full p-2 text-base border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded-md disabled:opacity-50" 
-                                    disabled={isLoading || (index > 0 && filters[(Object.keys(filters)[index-1])] === 'all') || !selectedLaunchId}>
-                                    <option value="all">Todos</option>
-                                    {(options[`${key}s`] || []).map(o => <option key={o} value={o}>{o}</option>)}
-                                </select>
-                            </div>
-                        ))}
+                        {filterHierarchy.map((key, index) => {
+                            const previousKey = filterHierarchy[index-1];
+                            const isDisabled = isLoading || (index > 0 && filters[previousKey] === 'all') || !selectedLaunchId; 
+                            return (
+                                <div key={key}>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1 capitalize">{`UTM ${key}`}</label>
+                                    <select 
+                                        value={filters[key]} 
+                                        onChange={e => handleFilterChange(key, e.target.value)}
+                                        className="w-full p-2 text-base border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded-md disabled:opacity-50" 
+                                        disabled={isDisabled}>
+                                        <option value="all">Todos</option>
+                                        {(options[`${key}s`] || []).map(o => <option key={o} value={o}>{o}</option>)}
+                                    </select>
+                                </div>
+                            )
+                        })}
                     </div>
                 </div>
             </div>
@@ -427,8 +370,10 @@ export default function EvolucaoCanalPage() {
                     {/* --- GRÁFICOS --- */}
                     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Visão Geral do Lançamento (por Dia)</h3>
-                        <div className="w-full h-80 md:h-[400px]">
-                            <ResponsiveContainer width="100%" height="100%">
+                        
+                        {/* 💡💡💡 CORREÇÃO 1 (ALERTA AMARELO) 💡💡💡 */}
+                        <div className="w-full">
+                            <ResponsiveContainer width="100%" height={400}>
                                 <BarChart data={data?.overview_chart_data || []}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="name" />
@@ -444,8 +389,10 @@ export default function EvolucaoCanalPage() {
                     
                     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Evolução no Período por Hora ({period})</h3>
-                        <div className="w-full h-80 md:h-[400px]">
-                            <ResponsiveContainer width="100%" height="100%">
+                        
+                        {/* 💡💡💡 CORREÇÃO 1 (ALERTA AMARELO) 💡💡💡 */}
+                        <div className="w-full">
+                            <ResponsiveContainer width="100%" height={400}>
                                 <LineChart data={data?.period_chart_data || []}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="name" />
@@ -463,40 +410,70 @@ export default function EvolucaoCanalPage() {
                     <div className="w-full bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Detalhes por Dia e Hora</h3>
                         
-                        <div className="hidden md:grid md:grid-cols-5 gap-4 px-4 py-2 mt-4 text-sm font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                        {/* 💡💡💡 CORREÇÃO 2 (NOVA TABELA PRINCIPAL) - HEADER 💡💡💡 */}
+                        <div className="hidden md:grid md:grid-cols-6 gap-4 px-4 py-2 mt-4 text-sm font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                             <span className="md:col-span-2">Data</span>
                             <span>Inscrições</span>
                             <span>Check-ins</span>
+                            <span>Preench. Checkin</span>
                             <span>Taxa de Check-in</span>
                         </div>
                         
                         <div className="space-y-2 md:mt-2">
-                            {/* *** CORREÇÃO: Usa 'filteredTableData' em vez de 'data?.table_data' *** */}
                             {filteredTableData.map(row => {
                                 const dayKey = format(parseISO(row.dia), 'yyyy-MM-dd');
                                 const isExpanded = expandedRows.has(dayKey); 
-                                const dailyCheckinRate = (row.total_inscricoes > 0) ? (row.total_checkins / row.total_inscricoes) * 100 : 0;
+                                
+                                // --- 💡💡💡 CORREÇÃO 2 (CÁLCULOS) 💡💡💡 ---
+                                // "Atual" (Inscrições vs Checkins do Dia) -> Preench. Checkin
+                                const preenchCheckin = (row.total_inscricoes > 0) ? (row.total_checkins / row.total_inscricoes) * 100 : 0;
+                                // "Nova" (Checkins do Dia vs Total Checkins) -> Taxa de Check-in
+                                const taxaCheckin = (kpis?.total_geral_checkins ?? 0) > 0
+                                    ? ((row.total_checkins / kpis.total_geral_checkins) * 100)
+                                    : 0;
+                                // --- FIM DA CORREÇÃO ---
 
                                 return (
                                 <div key={dayKey} className="bg-slate-50 dark:bg-gray-700/50 rounded-lg shadow-sm">
-                                    <div onClick={() => toggleRow(dayKey)} className="cursor-pointer p-4 grid grid-cols-3 md:grid-cols-5 gap-4 items-center">
+                                    
+                                    {/* --- 💡 CORREÇÃO 2 (GRID DA LINHA) --- */}
+                                    <div onClick={() => toggleRow(dayKey)} className="cursor-pointer p-4 grid grid-cols-3 md:grid-cols-6 gap-4 items-center">
                                         
+                                        {/* Col 1 & 2: Data + Stats Mobile */}
                                         <div className="md:col-span-2 col-span-2">
                                             <div className="font-medium text-gray-800 dark:text-gray-100">{format(parseISO(row.dia), 'dd/MM/yyyy', {locale: ptBR})}</div>
+                                            
+                                            {/* Stats Mobile (agora mostra ambas as taxas) */}
                                             <div className="md:hidden text-sm mt-1">
-                                                <span className="text-gray-500 dark:text-gray-400">Insc: </span>
-                                                <span className="font-semibold text-gray-800 dark:text-gray-100">{row.total_inscricoes.toLocaleString('pt-BR')}</span>
-                                                <span className="ml-2 text-gray-500 dark:text-gray-400">Chk: </span>
-                                                <span className="font-semibold text-gray-800 dark:text-gray-100">{row.total_checkins.toLocaleString('pt-BR')}</span>
+                                                <div>
+                                                    <span className="text-gray-500 dark:text-gray-400">Insc: </span>
+                                                    <span className="font-semibold text-gray-800 dark:text-gray-100">{row.total_inscricoes.toLocaleString('pt-BR')}</span>
+                                                    <span className="ml-2 text-gray-500 dark:text-gray-400">Chk: </span>
+                                                    <span className="font-semibold text-gray-800 dark:text-gray-100">{row.total_checkins.toLocaleString('pt-BR')}</span>
+                                                </div>
+                                                <div className="mt-1">
+                                                    <span className="text-gray-500 dark:text-gray-400">Preench: </span>
+                                                    <span className="font-semibold text-blue-600 dark:text-blue-400">{preenchCheckin.toFixed(1)}%</span>
+                                                    <span className="ml-2 text-gray-500 dark:text-gray-400">Taxa: </span>
+                                                    <span className="font-semibold text-green-600 dark:text-green-400">{taxaCheckin.toFixed(1)}%</span>
+                                                </div>
                                             </div>
                                         </div>
 
+                                        {/* Col 3: Inscrições (Desktop) */}
                                         <div className="hidden md:block text-gray-700 dark:text-gray-200">{row.total_inscricoes.toLocaleString('pt-BR')}</div>
                                         
+                                        {/* Col 4: Check-ins (Desktop) */}
                                         <div className="hidden md:block text-gray-700 dark:text-gray-200">{row.total_checkins.toLocaleString('pt-BR')}</div>
                                         
+                                        {/* Col 5: Preench. Checkin (Desktop) */}
+                                        <div className="hidden md:block font-semibold text-blue-600 dark:text-blue-400">
+                                            {preenchCheckin.toFixed(1)}%
+                                        </div>
+
+                                        {/* Col 6: Taxa de Check-in (Desktop) + Chevron */}
                                         <div className="flex items-center justify-end md:justify-start">
-                                            <span className="font-semibold text-blue-600 dark:text-blue-400">{dailyCheckinRate.toFixed(1)}%</span>
+                                            <span className="font-semibold text-green-600 dark:text-green-400">{taxaCheckin.toFixed(1)}%</span>
                                             <FaChevronDown className={`ml-3 text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} size={12} />
                                         </div>
                                     </div>
@@ -505,21 +482,42 @@ export default function EvolucaoCanalPage() {
                                         <div className="p-0 bg-slate-100 dark:bg-gray-700/20 border-t border-slate-200 dark:border-gray-600">
                                             <div className="overflow-x-auto pl-4 md:pl-10 pr-4 py-2">
                                                 <table className="min-w-full text-sm">
+                                                    
+                                                    {/* --- 💡 CORREÇÃO 2 (TABELA ANINHADA) - HEADER --- */}
                                                     <thead className="bg-slate-200 dark:bg-gray-600">
                                                         <tr>
                                                             <th className="p-2 text-left">Hora</th>
                                                             <th className="p-2 text-left">Inscrições</th>
                                                             <th className="p-2 text-left">Check-ins</th>
+                                                            <th className="p-2 text-left">Preench. Checkin</th>
+                                                            <th className="p-2 text-left">Taxa de Check-in</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {row.hourly_details?.map(item => (
-                                                            <tr key={item.hora} className="border-b border-slate-100 dark:border-gray-600/50">
-                                                                <td className="p-2">{`${item.hora.toString().padStart(2, '0')}:00`}</td>
-                                                                <td className="p-2">{item.inscricoes}</td>
-                                                                <td className="p-2">{item.checkins}</td>
-                                                            </tr>
-                                                        ))}
+                                                        {row.hourly_details?.map(item => {
+                                                            // --- 💡 CORREÇÃO 2 (TABELA ANINHADA) - CÁLCULOS ---
+                                                            // "Atual" (Inscrições vs Checkins da Hora) -> Preench. Checkin
+                                                            const hourlyPreenchRate = (item.inscricoes > 0) ? ((item.checkins / item.inscricoes) * 100) : 0;
+                                                            // "Nova" (Checkins da Hora vs Total Checkins) -> Taxa de Check-in
+                                                            const hourlyShareRate = (kpis?.total_geral_checkins ?? 0) > 0
+                                                                ? ((item.checkins / kpis.total_geral_checkins) * 100)
+                                                                : 0;
+
+                                                            return (
+                                                                <tr key={item.hora} className="border-b border-slate-100 dark:border-gray-600/50">
+                                                                    <td className="p-2">{`${item.hora.toString().padStart(2, '0')}:00`}</td>
+                                                                    <td className="p-2">{item.inscricoes}</td>
+                                                                    <td className="p-2">{item.checkins}</td>
+                                                                    {/* --- 💡 CORREÇÃO 2 (TABELA ANINHADA) - CÉLULAS --- */}
+                                                                    <td className="p-2 font-semibold text-blue-600 dark:text-blue-400">
+                                                                        {hourlyPreenchRate.toFixed(1)}%
+                                                                    </td>
+                                                                    <td className="p-2 font-semibold text-green-600 dark:text-green-400">
+                                                                        {hourlyShareRate.toFixed(1)}%
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -529,7 +527,6 @@ export default function EvolucaoCanalPage() {
                                 )
                             })}
                             
-                            {/* *** NOVO: Mostra mensagem se a tabela filtrada estiver vazia mas houver dados *** */}
                             {filteredTableData.length === 0 && (data?.table_data ?? []).length > 0 && (
                                 <div className="text-center text-gray-500 dark:text-gray-400 py-4">
                                     Nenhum dado encontrado para o período selecionado.

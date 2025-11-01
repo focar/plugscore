@@ -1,6 +1,7 @@
+// /src/app/(main)/Dashboards/traqueamento/page.jsx
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useContext } from "react";
+import { useState, useEffect, useCallback, useMemo, useContext, Fragment } from "react";
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AppContext } from '@/context/AppContext';
@@ -9,15 +10,13 @@ import { ArrowRight, Percent } from "lucide-react";
 import toast, { Toaster } from 'react-hot-toast';
 import dynamic from 'next/dynamic';
 
-// --- CORREÇÃO: Revertendo a forma de importação dinâmica para a original ---
 const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false });
 const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false });
 const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
 const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
 const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false });
-// --- FIM DA CORREÇÃO ---
 
-// Componente KpiCard
+// Componente KpiCard (Mantido)
 const KpiCard = ({ title, value, percentage, icon: Icon }) => (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md h-full">
         <div className="flex items-center justify-between">
@@ -33,7 +32,7 @@ const KpiCard = ({ title, value, percentage, icon: Icon }) => (
     </div>
 );
 
-// Componente TrafficCard
+// Componente TrafficCard (Mantido)
 const TrafficCard = ({ title, leads, checkins, icon: Icon, onClick, rateColor, totalLeads }) => {
     const leadPercentage = totalLeads > 0 ? ((leads / totalLeads) * 100).toFixed(1) : '0.0';
     return (
@@ -67,110 +66,194 @@ export default function TraqueamentoPage() {
     const [launches, setLaunches] = useState([]);
     const [selectedLaunchId, setSelectedLaunchId] = useState('');
     const [kpis, setKpis] = useState(null);
-    const [isLoading, setIsLoading] = useState(false); // Inicia como false
+    const [isLoading, setIsLoading] = useState(false); 
     const [isLoadingLaunches, setIsLoadingLaunches] = useState(true);
+    const [error, setError] = useState(null);
 
-    // Efeito para buscar os lançamentos (dropdown principal)
+    const clientIdToSend = userProfile?.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile?.cliente_id;
+
+
+    // --- Handler de Mudança do Dropdown de Lançamento (useCallback) ---
+    const handleLaunchChange = useCallback((newLaunchId) => {
+        const selected = launches.find(l => l.id === newLaunchId);
+        const selectedName = selected ? selected.codigo : '';
+
+        // 1. Atualiza o estado da página principal
+        setSelectedLaunchId(newLaunchId);
+
+        // 2. Atualiza o sessionStorage para persistência nos detalhes
+        if (newLaunchId) {
+            sessionStorage.setItem('currentDetailLaunchId', newLaunchId);
+            sessionStorage.setItem('currentDetailLaunchName', selectedName);
+        } else {
+            sessionStorage.removeItem('currentDetailLaunchId');
+            sessionStorage.removeItem('currentDetailLaunchName');
+        }
+        
+        // Força o recarregamento dos KPIs se houver novo ID
+        if (newLaunchId) {
+            setKpis(null);
+            setIsLoading(true); // Garante que o spinner rode antes do fetch
+        } else {
+            setKpis(null);
+            setIsLoading(false); // Para o spinner se o dropdown for limpo
+        }
+    }, [launches]);
+
+
+    // --- Efeito 1: Busca e Popula os Lançamentos (Dropdown principal) ---
     useEffect(() => {
-        if (!userProfile) return;
+        // CORREÇÃO CRÍTICA DO LOOP: Garante que só rode se os parâmetros base mudarem
+        if (!userProfile || clientIdToSend === undefined) return;
 
         const isAllClients = userProfile.role === 'admin' && selectedClientId === 'all';
-        const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id;
-
-        // Se for admin e "Todos os Clientes", limpa tudo e para
+        
+        // Limpa SessionStorage de persistência de detalhe ao trocar de cliente/modo
+        sessionStorage.removeItem('currentDetailLaunchId');
+        sessionStorage.removeItem('currentDetailLaunchName');
+        
         if (isAllClients) {
-            setLaunches([]);
-            setSelectedLaunchId('');
-            setIsLoadingLaunches(false);
-            setKpis(null); // Limpa KPIs antigos
-            setIsLoading(false); // Para qualquer spinner de dados
-            return;
+            setLaunches([]); setSelectedLaunchId(''); setIsLoadingLaunches(false);
+            setKpis(null); setIsLoading(false); return;
         }
 
-        // Se um cliente específico for selecionado, busca os lançamentos
         const fetchLaunches = async () => {
+            // 1. Tenta restaurar o ID salvo do botão Voltar ('persistLaunchId')
+            // ESTA LÓGICA JÁ ESTAVA CORRETA
+            const persistedLaunchId = sessionStorage.getItem('persistLaunchId');
+            // Remove o item logo após a leitura para que não seja restaurado em carregamentos futuros
+            if (persistedLaunchId) {
+                sessionStorage.removeItem('persistLaunchId'); 
+            }
+
             setIsLoadingLaunches(true);
-            setKpis(null); // Limpa KPIs ao trocar de cliente
-            setIsLoading(true); // Ativa o spinner de dados
+            setKpis(null); 
+            setIsLoading(true); 
+            setError(null);
             
             const { data, error } = await supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend });
 
             if (error) {
-                toast.error("Falha ao carregar lançamentos.");
+                toast.error("Falha ao carregar lançamentos. " + error.message);
                 setLaunches([]);
+                setError(error.message);
             } else if (data) {
                 const sorted = [...data].sort((a, b) => (a.codigo || a.nome).localeCompare(b.codigo || b.nome));
                 setLaunches(sorted);
-                setSelectedLaunchId('');
+                
+                // *** CORREÇÃO UX: Restaura a seleção se o usuário voltou da página de detalhe. ***
+                // ESTA LÓGICA JÁ ESTAVA CORRETA
+                let idToSelect = ''; 
+                if (persistedLaunchId && sorted.some(l => l.id === persistedLaunchId)) {
+                    idToSelect = persistedLaunchId;
+                }
+                
+                // AQUI, forçamos o estado
+                setSelectedLaunchId(idToSelect);
+
+                // 2. Salva o ID e Nome no SessionStorage APENAS se houver seleção (para detalhe)
+                const selectedLaunch = sorted.find(l => l.id === idToSelect);
+                if (selectedLaunch) {
+                        sessionStorage.setItem('currentDetailLaunchId', idToSelect);
+                        sessionStorage.setItem('currentDetailLaunchName', selectedLaunch.codigo);
+                }
             }
+
             setIsLoadingLaunches(false);
-            setIsLoading(false); // Para o spinner de dados, pois nenhum lançamento foi selecionado
+            
+            // 3. Se não houver ID selecionado, paramos o spinner de KPI
+            // Se houver, o Efeito 2 irá rodar e parar o spinner
+            if (!selectedLaunchId && !persistedLaunchId) { // Adicionada verificação de persistedLaunchId
+                setIsLoading(false); 
+            }
         };
         
         fetchLaunches();
-    }, [userProfile, selectedClientId, supabase]);
+    }, [userProfile, selectedClientId, supabase, clientIdToSend]); // Depende apenas de parâmetros base
 
-    // Efeito para buscar os dados principais (KPIs, Gráfico)
+
+    // --- Efeito 2: Busca os KPIs quando um Lançamento é Selecionado ---
     useEffect(() => {
-        const fetchDataForLaunch = async () => {
-            if (!selectedLaunchId || !userProfile) {
-                setKpis(null); 
-                setIsLoading(false); 
-                return;
-            }
+        // Roda APENAS quando selectedLaunchId muda (ou os params base)
+        if (!selectedLaunchId || clientIdToSend === undefined || clientIdToSend === 'all') {
+            setKpis(null); 
+            if (isLoading) setIsLoading(false); // Garante que o spinner pare se não houver ID
+            return;
+        }
 
-            setIsLoading(true);
-            try {
-                const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id;
-                const { data, error } = await supabase.rpc('get_tracking_kpis', { 
-                    p_launch_id: selectedLaunchId,
-                    p_client_id: clientIdToSend
-                });
-                if (error) throw error;
-                setKpis(data[0] || null);
-            } catch (err) {
-                toast.error("Falha ao carregar os dados de traqueamento.");
+        const fetchKpis = async () => {
+            setIsLoading(true); // O spinner já deve estar rodando, mas garantimos
+            setError(null);
+            
+            const { data, error } = await supabase.rpc('get_tracking_kpis', { 
+                p_launch_id: selectedLaunchId,
+                p_client_id: clientIdToSend 
+            });
+
+            if (error) {
+                toast.error("Falha ao carregar KPIs. " + error.message);
                 setKpis(null);
-            } finally {
-                setIsLoading(false);
+                setError(error.message);
+            } else if (data && data.length > 0) {
+                setKpis(data[0]);
+            } else {
+                setKpis(null);
             }
+            setIsLoading(false);
         };
+        
+        fetchKpis();
+    }, [selectedLaunchId, clientIdToSend, supabase]); // Depende do ID selecionado
 
-        fetchDataForLaunch();
-    }, [selectedLaunchId, userProfile, selectedClientId, supabase]); 
-    
-    // Efeito para atualizar o Header (Dropdown de Lançamento)
+
+    // --- 💡 Lógica de Captura e Persistência de Estado (Navegação Limpa) ---
+    const handleNavigate = (type) => {
+        if (!selectedLaunchId) { 
+            toast.error("Por favor, selecione um lançamento primeiro."); 
+            return; 
+        }
+
+        let baseDetailPage = '';
+        if (type === 'paid') {
+            baseDetailPage = '/Dashboards/traqueamento/detalhe-pago';
+        } else if (type === 'organic') {
+            baseDetailPage = '/Dashboards/traqueamento/detalhe-organico';
+        } else if (type === 'untracked') {
+            baseDetailPage = '/Dashboards/traqueamento/detalhe-nao-traqueado';
+        }
+
+        // Os valores já estão salvos no sessionStorage via handleLaunchChange.
+        // Apenas navegamos para a URL limpa.
+        router.push(baseDetailPage);
+    };
+
+    // --- Efeito de Header (Dropdown) ---
     useEffect(() => {
         const isClientSelected = !(userProfile?.role === 'admin' && selectedClientId === 'all');
         const isDisabled = isLoadingLaunches || !isClientSelected;
 
+        const launchName = launches.find(l => l.id === selectedLaunchId)?.codigo || '';
+
         const launchSelector = (
             <select 
-                value={selectedLaunchId} 
-                onChange={(e) => setSelectedLaunchId(e.target.value)} 
+                value={selectedLaunchId || ''} 
+                onChange={(e) => handleLaunchChange(e.target.value)} 
+                className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2" 
                 disabled={isDisabled}
-                className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2"
             >
-                {!isClientSelected ? (
-                    <option value="" disabled>Selecione um cliente</option>
-                ) : isLoadingLaunches ? (
-                    <option value="" disabled>Carregando...</option>
-                ) : launches.length === 0 ? (
-                    <option value="" disabled>Nenhum lançamento</option>
-                ) : (
-                    <option value="">Selecione um lançamento</option>
-                )}
-                
+                <option value="">Selecione um lançamento {launchName ? `(${launchName})` : ''}</option> 
                 {launches.map(l => <option key={l.id} value={l.id}>{l.codigo} ({l.status})</option>)}
             </select>
         );
-        
         setHeaderContent({ title: 'Traqueamento de Trafego', controls: launchSelector });
         return () => setHeaderContent({ title: '', controls: null });
-    }, [setHeaderContent, selectedLaunchId, launches, isLoadingLaunches, userProfile, selectedClientId]);
+    }, [setHeaderContent, selectedLaunchId, launches, isLoadingLaunches, userProfile, selectedClientId, handleLaunchChange]);
 
-
-    // Dados para o gráfico de pizza
+    // --- Renderização ---
+    const totalLeads = kpis?.total_leads || 0;
+    const checkinRate = totalLeads > 0 ? ((kpis.total_checkins / totalLeads) * 100).toFixed(1) + '%' : '0.0%';
+    const totalCheckinsText = kpis?.total_checkins?.toLocaleString('pt-BR') || '0';
+    
     const chartData = useMemo(() => {
         if (!kpis) return [];
         return [
@@ -180,49 +263,31 @@ export default function TraqueamentoPage() {
         ].filter(item => item.value > 0);
     }, [kpis]);
 
-    const checkinRate = kpis && kpis.total_leads > 0 ? ((kpis.total_checkins / kpis.total_leads) * 100).toFixed(1) + '%' : '0.0%';
-    const totalPercentageText = kpis ? `${(kpis.total_checkins || 0).toLocaleString('pt-BR')} de ${(kpis.total_leads || 0).toLocaleString('pt-BR')}` : '0 de 0';
-
-    // Navegação para páginas de detalhe
-    const handleNavigate = (type) => {
-        if (!selectedLaunchId) { toast.error("Por favor, selecione um lançamento primeiro."); return; }
-        const launchCode = launches.find(l => l.id === selectedLaunchId)?.codigo || 'detalhe';
-        const queryParams = new URLSearchParams({ launchId: selectedLaunchId, launchName: launchCode }).toString();
-        switch (type) {
-            case 'paid': router.push(`/Dashboards/traqueamento/detalhe-pago?${queryParams}`); break;
-            case 'organic': router.push(`/Dashboards/traqueamento/detalhe-organico?${queryParams}`); break;
-            case 'untracked': router.push(`/Dashboards/traqueamento/detalhe-nao-traqueado?${queryParams}`); break;
-        }
-    };
-
-    // Condição de loading principal
-    const isPageLoading = isLoading || isLoadingLaunches;
-
     return (
         <div className="p-4 md:p-6 lg:p-8 text-gray-900 dark:text-gray-100">
             <Toaster position="top-center" />
 
-            {/* Gerenciamento de estado de exibição */}
-            {isPageLoading ? (
-                // 1. Estado de Carregamento
-                <div className="flex justify-center items-center h-96"> <FaSpinner className="animate-spin text-blue-500 text-5xl" /> </div>
+            {/* Tratamento de Erro/Loading */}
+            {(isLoadingLaunches || isLoading) ? (
+                <div className="flex justify-center items-center h-96"> <FaSpinner className="animate-spin text-blue-600 text-3xl mx-auto" /> </div>
+            ) : error ? (
+                <div className="p-4 bg-red-100 text-red-700 border border-red-400 rounded-lg">
+                    Erro ao carregar dados: {error}
+                </div>
             ) : !selectedLaunchId ? (
-                // 2. Estado Inicial (sem lançamento selecionado)
-                 <div className="text-center py-16">
-                    <p className="text-gray-500 dark:text-gray-400">Por favor, selecione um cliente e um lançamento para exibir os dados.</p>
+                <div className="text-center text-gray-500 dark:text-gray-400 py-10">
+                    Selecione um lançamento para visualizar o Dashboard.
                 </div>
             ) : !kpis ? (
-                // 3. Estado de "Sem Dados" (lançamento selecionado, mas sem KPIs)
-                <div className="text-center py-16">
-                    <p className="text-gray-500 dark:text-gray-400">Não há dados de traqueamento para exibir para este lançamento.</p>
+                <div className="text-center text-gray-500 dark:text-gray-400 py-10">
+                    Nenhum dado de traqueamento encontrado para este lançamento.
                 </div>
             ) : (
-                // 4. Estado de "Sucesso" (dados carregados)
                 <main className="space-y-8">
                     {/* Seção de KPIs */}
                     <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <KpiCard title="TOTAL DE LEADS" value={(kpis.total_leads || 0).toLocaleString('pt-BR')} icon={FaUsers} />
-                        <KpiCard title="TOTAL DE CHECK-INS" value={(kpis.total_checkins || 0).toLocaleString('pt-BR')} percentage={totalPercentageText} icon={FaUserCheck} />
+                        <KpiCard title="TOTAL DE LEADS" value={totalLeads.toLocaleString('pt-BR')} icon={FaUsers} />
+                        <KpiCard title="TOTAL DE CHECK-INS" value={totalCheckinsText} percentage={`${totalCheckinsText} de ${totalLeads.toLocaleString('pt-BR')}`} icon={FaUserCheck} />
                         <KpiCard title="TAXA DE CHECK-IN" value={checkinRate} icon={Percent} />
                     </section>
                     
@@ -230,26 +295,49 @@ export default function TraqueamentoPage() {
                     <section className="space-y-6">
                         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 pb-2">Análise por Origem de Tráfego</h2>
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+                            
+                            {/* Cards de Tráfego */}
                             <div className="space-y-4 lg:col-span-1">
-                                <TrafficCard title="TRÁFEGO PAGO" leads={kpis.paid_leads || 0} checkins={kpis.paid_checkins || 0} icon={FaBullhorn} onClick={() => handleNavigate('paid')} rateColor="text-blue-500" totalLeads={kpis.total_leads || 0} />
-                                <TrafficCard title="ORGÂNICO" leads={kpis.organic_leads || 0} checkins={kpis.organic_checkins || 0} icon={FaLeaf} onClick={() => handleNavigate('organic')} rateColor="text-green-500" totalLeads={kpis.total_leads || 0} />
-                                <TrafficCard title="NÃO TRAQUEADO" leads={kpis.untracked_leads || 0} checkins={kpis.untracked_checkins || 0} icon={FaQuestionCircle} onClick={() => handleNavigate('untracked')} rateColor="text-purple-500" totalLeads={kpis.total_leads || 0} />
+                                <TrafficCard 
+                                    title="TRÁFEGO PAGO" 
+                                    leads={kpis.paid_leads || 0} 
+                                    checkins={kpis.paid_checkins || 0} 
+                                    icon={FaBullhorn} 
+                                    onClick={() => handleNavigate('paid')} 
+                                    rateColor="text-blue-500" 
+                                    totalLeads={totalLeads} 
+                                />
+                                <TrafficCard 
+                                    title="ORGÂNICO" 
+                                    leads={kpis.organic_leads || 0} 
+                                    checkins={kpis.organic_checkins || 0} 
+                                    icon={FaLeaf} 
+                                    onClick={() => handleNavigate('organic')} 
+                                    rateColor="text-green-500" 
+                                    totalLeads={totalLeads} 
+                                />
+                                <TrafficCard 
+                                    title="NÃO TRAQUEADO" 
+                                    leads={kpis.untracked_leads || 0} 
+                                    checkins={kpis.untracked_checkins || 0} 
+                                    icon={FaQuestionCircle} 
+                                    onClick={() => handleNavigate('untracked')} 
+                                    rateColor="text-purple-500" 
+                                    totalLeads={totalLeads} 
+                                />
                             </div>
-                            <div className="lg:col-span-2 h-80">
-                               <ResponsiveContainer width="100%" height="100%">
+                            
+                            {/* Gráfico de Pizza */}
+                            {/*
+                              * CORREÇÃO (ALERTA DO CONSOLE): 
+                              * Adicionado "flex flex-col" ao contêiner.
+                              * Isso força o 'div' a ter uma altura definida antes do gráfico tentar renderizar,
+                              * resolvendo o aviso de width/height -1.
+                            */}
+                            <div className="lg:col-span-2 h-80 flex flex-col">
+                                <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
-                                        <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%" labelLine={false} label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
-                                            // Não mostra o label se a porcentagem for muito pequena
-                                            if (!percent || percent < 0.02) return null; 
-                                            const radius = innerRadius + (outerRadius - innerRadius) * 1.3;
-                                            const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
-                                            const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
-                                            return (
-                                                <text x={x} y={y} fill="currentColor" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-sm font-semibold">
-                                                    {`${(percent * 100).toFixed(1)}%`}
-                                                </text>
-                                            );
-                                        }}>
+                                        <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%" labelLine={false} >
                                             {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
                                         </Pie>
                                         <Legend />

@@ -2,19 +2,18 @@
 'use client';
 
 // =================================================================
-// /// --- CÓDIGO v27 (3 Perfis com Gráficos + Tabela Resumo) --- ///
+// /// --- CÓDIGO v29 (Corrige erro de "duplicate key") --- ///
 // =================================================================
 
 import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import dynamic from 'next/dynamic';
-// ** Assumindo que estas importações funcionam no seu ambiente local **
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AppContext } from '@/context/AppContext';
 import toast, { Toaster } from 'react-hot-toast';
 import {
     Download, X, BarChart2, PieChart, Database, ListChecks,
     Target, Star, UserCheck, Lightbulb, Users, Loader2, FileDown,
-    MessageSquareText, Group, UserCircle, // Ícones para novos perfis
+    MessageSquareText, Group, UserCircle,
 } from 'lucide-react';
 
 import { Bar, Pie } from 'react-chartjs-2';
@@ -27,9 +26,9 @@ import {
 const PDFButtonWrapper = dynamic(() => import('./PDFButtonWrapper'), {
   ssr: false, // Garante que não executa no servidor
   loading: () => ( // Placeholder enquanto carrega
-      <button className="flex items-center justify-center gap-2 px-4 py-2 min-w-36 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow cursor-not-allowed opacity-50" disabled>
-          <Loader2 className="animate-spin h-5 w-5" /> <span>Carregando...</span>
-      </button>
+        <button className="flex items-center justify-center gap-2 px-4 py-2 min-w-36 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow cursor-not-allowed opacity-50" disabled>
+            <Loader2 className="animate-spin h-5 w-5" /> <span>Carregando...</span>
+        </button>
   )
 });
 
@@ -102,7 +101,7 @@ export default function DebriefingConversaoPage() {
     const [scoreAnalysis, setScoreAnalysis] = useState([]);
     const [mqlAnalysis, setMqlAnalysis] = useState([]);
     const [automatedInsights, setAutomatedInsights] = useState({ escalar: [], ajustar: [] });
-
+    
     // *** ESTADOS DE PERFIL ACTUALIZADOS ***
     const [perfilPublicoData, setPerfilPublicoData] = useState({}); // Agrupado
     const [perfilInscritosData, setPerfilInscritosData] = useState({}); // Agrupado
@@ -122,6 +121,26 @@ export default function DebriefingConversaoPage() {
     const perfilPublicoRefs = useRef({});
     const perfilInscritosRefs = useRef({});
     const perfilCompradoresRefs = useRef({}); // NOVO
+    
+    // --- Funções estáveis (useCallback) para setar as refs ---
+    const setPublicoRef = useCallback((question, el) => {
+        if (perfilPublicoRefs.current) {
+            perfilPublicoRefs.current[question] = el;
+        }
+    }, []); 
+
+    const setInscritosRef = useCallback((question, el) => {
+        if (perfilInscritosRefs.current) {
+            perfilInscritosRefs.current[question] = el;
+        }
+    }, []); 
+
+    const setCompradoresRef = useCallback((question, el) => {
+        if (perfilCompradoresRefs.current) {
+            perfilCompradoresRefs.current[question] = el;
+        }
+    }, []); 
+
 
      // --- Configurações dos Gráficos Chart.js ---
      const [chartColors, setChartColors] = useState({ legend: '#cbd5e1', ticks: '#9ca3af', grid: '#374151', border: '#1f2937' });
@@ -151,7 +170,7 @@ export default function DebriefingConversaoPage() {
         return data.reduce((acc, curr) => {
             const q = curr.question_text || 'Sem Pergunta';
             acc[q] = acc[q] || [];
-            // Adiciona apenas os campos necessários para renderAnswersAnalysis
+            // Adiciona apenas os campos necessários
             acc[q].push({ answer: curr.answer_text, count: curr.answer_count, percentage: curr.answer_percentage });
             return acc;
         }, {});
@@ -308,78 +327,83 @@ export default function DebriefingConversaoPage() {
         return ( <div className="overflow-x-auto w-full"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead className="bg-gray-50 dark:bg-gray-700"><tr><th className={thClass}>{titleKey.replace(/_/g, ' ')}</th><th className={thClass}>Check-ins</th><th className={thClass} title="Contribuição % do Total de Check-ins do Lançamento">% Ck Total</th><th className={thClass}>Compras</th><th className={thClass} title="Contribuição % do Total de Compras do Lançamento">% Compra Total</th></tr></thead><tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">{sortedData.map((row, index) => (<tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className={tdPrimaryClass}>{row[titleKey]}</td><td className={tdClass}>{(row.checkins || 0).toLocaleString('pt-BR')}</td><td className={tdClass}>{parseFloat(row.tx_checkin_contribution || 0).toFixed(2)}%</td><td className={tdClass}>{(row.vendas || 0).toLocaleString('pt-BR')}</td><td className={tdBoldClass}>{parseFloat(row.tx_venda_contribution || 0).toFixed(2)}%</td></tr>))}</tbody></table></div> );
     };
 
-    // Renderiza seção de análise de perfil (gráficos + lista) - reutilizada para os 3 perfis
-    const renderProfileAnalysisSection = (profileData, title, chartRefs) => {
-        const questions = Object.keys(profileData);
-        if (questions.length === 0) { return <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados de perfil para análise.</p>; }
+    // --- Componente interno para renderizar cada gráfico de perfil ---
+    const ProfileQuestion = React.memo(({ question, questionData, chartOptions, chartColors, setChartRef }) => {
+        const chartRef = useRef(null);
         const pieColors = ['rgba(16, 185, 129, 0.7)', 'rgba(59, 130, 246, 0.7)', 'rgba(234, 179, 8, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(139, 92, 246, 0.7)', 'rgba(107, 114, 128, 0.7)'];
-        const pieOptions = { responsive: true, maintainAspectRatio: false, scales: {}, plugins: { legend: { position: 'bottom', labels: { color: chartColors.legend, boxWidth: 10, padding: 10, font: { size: 10 } } }, title: { display: false }, tooltip: { callbacks: { label: tooltipLabelCallback } } } };
-        
+        const pieData = {
+            labels: questionData.map(ans => ans.answer),
+            datasets: [{
+                label: 'Respostas',
+                data: questionData.map(ans => ans.count),
+                backgroundColor: questionData.map((_, i) => pieColors[i % pieColors.length]),
+                borderColor: [chartColors.border],
+                borderWidth: 1
+            }],
+        };
+
+        useEffect(() => {
+            if (setChartRef && chartRef.current) {
+                setChartRef(question, chartRef.current);
+            }
+        }, [setChartRef, question]); 
+
         return (
-            <div className="space-y-4 md:space-y-6"> {/* Container para todas as perguntas */}
-                {questions.map((question, qIndex) => {
-                    const questionData = profileData[question] || []; 
-                    const pieData = { 
-                        labels: questionData.map(ans => ans.answer), 
-                        datasets: [{ 
-                            label: 'Respostas', 
-                            data: questionData.map(ans => ans.count), 
-                            backgroundColor: questionData.map((_, i) => pieColors[i % pieColors.length]), 
-                            borderColor: [chartColors.border], 
-                            borderWidth: 1 
-                        }], 
-                    };
-                    
-                    return ( 
-                        <div key={qIndex} className="space-y-4"> {/* Wrapper para cada pergunta (Título + Grid) */}
-                            <h4 className="font-semibold text-gray-800 dark:text-gray-100 text-sm md:text-base">{question}</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch"> {/* Grid para Gráfico e Lista */}
-                                
-                                {/* Card 1: Gráfico */}
-                                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-lg shadow flex items-center justify-center">
-                                    <div className="h-64 w-full">
-                                        <Pie 
-                                            options={pieOptions} 
-                                            data={pieData} 
-                                            ref={(el) => { if (chartRefs && chartRefs.current) { chartRefs.current[question] = el; } }} 
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Card 2: Lista */}
-                                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-lg shadow">
-                                    <ul className="space-y-1 overflow-y-auto max-h-64 pr-2 w-full"> 
-                                        {questionData.sort((a, b) => (b.count ?? 0) - (a.count ?? 0)).map((ans, aIndex) => ( 
-                                            <li key={aIndex} className="flex justify-between items-center text-xs md:text-sm text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 last:border-b-0 py-2"> 
-                                                <span className="truncate pr-2">{ans.answer}</span> 
-                                                <span className="font-medium text-gray-800 dark:text-gray-100 whitespace-nowrap">{ans.count} ({ans.percentage}%)</span> 
-                                            </li> 
-                                        ))} 
-                                    </ul>
-                                </div>
-                            </div> 
-                        </div> 
-                    );
-                })}
-            </div> 
+            <div className="space-y-4"> {/* Wrapper para cada pergunta (Título + Grid) */}
+                <h4 className="font-semibold text-gray-800 dark:text-gray-100 text-sm md:text-base">{question}</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch"> {/* Grid para Gráfico e Lista */}
+                    {/* Card 1: Gráfico */}
+                    <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-lg shadow flex items-center justify-center">
+                        <div className="h-64 w-full">
+                            <Pie
+                                options={chartOptions}
+                                data={pieData}
+                                ref={chartRef} 
+                            />
+                        </div>
+                    </div>
+                    {/* Card 2: Lista */}
+                    <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-lg shadow">
+                        <ul className="space-y-1 overflow-y-auto max-h-64 pr-2 w-full">
+                            {questionData.sort((a, b) => (b.count ?? 0) - (a.count ?? 0)).map((ans, aIndex) => (
+                                <li key={aIndex} className="flex justify-between items-center text-xs md:text-sm text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 last:border-b-0 py-2">
+                                    <span className="truncate pr-2">{ans.answer}</span>
+                                    <span className="font-medium text-gray-800 dark:text-gray-100 whitespace-nowrap">{ans.count} ({ans.percentage}%)</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            </div>
         );
-    };
+    });
+    ProfileQuestion.displayName = 'ProfileQuestion'; 
 
-    // renderAvatarSection NÃO É MAIS USADA
 
     const renderTopTwoTable = (topTwoData, profileQuestions) => {
         if (!topTwoData || topTwoData.length === 0) { return <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados para o resumo.</p>; }
         const thClass = "px-2 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"; const tdClass = "px-2 py-2 whitespace-normal text-xs text-gray-700 dark:text-gray-100"; const groupedTopTwo = topTwoData.reduce((acc, curr) => { acc[curr.question_text] = acc[curr.question_text] || []; acc[curr.question_text].push({ answer: curr.answer_text, percentage: curr.answer_percentage }); return acc; }, {});
-        // ** USA AS LISTAS DE PERGUNTAS DEFINIDAS **
-        const orderedQuestions = [ ...profileQuestions.publico, ...profileQuestions.inscritos, ...profileQuestions.compradores ].filter(q => groupedTopTwo[q]);
+        
+        // --- 💡💡 CORREÇÃO: Remove duplicatas antes de filtrar 💡💡 ---
+        const allQuestions = [ ...profileQuestions.publico, ...profileQuestions.inscritos, ...profileQuestions.compradores ];
+        const uniqueQuestions = [...new Set(allQuestions)]; // Garante que cada pergunta só apareça uma vez
+        const orderedQuestions = uniqueQuestions.filter(q => groupedTopTwo[q]); // Filtra pelas perguntas que temos dados
+        // --- FIM DA CORREÇÃO ---
+
         return ( <div className="overflow-x-auto w-full bg-white dark:bg-gray-800 shadow rounded-lg p-2 md:p-4"> <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"> <thead className="bg-gray-50 dark:bg-gray-700"> <tr> <th className={`${thClass} w-1/2`}>Pergunta</th> <th className={thClass}>1ª Resposta Mais Comum</th> <th className={thClass}>2ª Resposta Mais Comum</th> </tr> </thead>
         <tbody className="divide-y divide-gray-200 dark:divide-gray-700"> 
-          {orderedQuestions.map((questionText) => { const answers = groupedTopTwo[questionText] || []; const top1 = answers[0] ? `${answers[0].answer} (${answers[0].percentage}%)` : '-'; const top2 = answers[1] ? `${answers[1].answer} (${answers[1].percentage}%)` : '-'; return ( 
+          {orderedQuestions.map((questionText) => { // Agora `questionText` é garantidamente único
+            const answers = groupedTopTwo[questionText] || []; 
+            const top1 = answers[0] ? `${answers[0].answer} (${answers[0].percentage}%)` : '-'; 
+            const top2 = answers[1] ? `${answers[1].answer} (${answers[1].percentage}%)` : '-'; 
+            return ( 
+            // A `key` agora é única
             <tr key={questionText} className="odd:bg-white dark:odd:bg-gray-800 even:bg-gray-50 dark:even:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600"> 
               <td className={`${tdClass} font-medium text-gray-900 dark:text-white w-1/2`}>{questionText}</td> 
               <td className={tdClass}>{top1}</td> 
               <td className={tdClass}>{top2}</td> 
-            </tr> ); })} 
+            </tr> ); 
+          })} 
         </tbody> 
         </table> </div> );
     };
@@ -436,7 +460,7 @@ export default function DebriefingConversaoPage() {
                     {/* Seção 3: Fontes de Tráfego */}
                     <section>
                         <SectionHeader icon={PieChart} title="Análise de Fontes de Tráfego" />
-                        {fontes.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-3 gap-6"> <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full overflow-hidden"> <div className="h-64 sm:h-72 md:h-80"> <Pie ref={fontesChartRef} options={pieChartOptions} data={pieChartData} /> </div> </div> <div className="lg:col-span-2 overflow-x-auto bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow"> <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"> <thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Fonte</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Compras</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Conversão Lead p/ Compra">Tx. L/Cp</th></tr></thead> <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">{fontes.map(f => (<tr key={f.fonte} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{f.fonte}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.leads_gerados || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.total_checkins || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.vendas || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-semibold text-gray-800 dark:text-white">{parseFloat(f.tx_lead_venda || 0).toFixed(2)}%</td></tr>))}</tbody> </table> </div> </div> ) : <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
+                        {fontes.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-3 gap-6"> <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full overflow-hidden"> <div className="h-64 sm:h-72 md:h-80"> <Pie ref={fontesChartRef} options={pieChartOptions} data={pieChartData} /> </div> </div> <div className="lg:col-span-2 overflow-x-auto bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow"> <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"> <thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Fonte</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Compras</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Conversão Lead p/ Compra">Tx. L/Cp</th></tr></thead> <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gamma-700">{fontes.map(f => (<tr key={f.fonte} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{f.fonte}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.leads_gerados || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.total_checkins || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.vendas || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-semibold text-gray-800 dark:text-white">{parseFloat(f.tx_lead_venda || 0).toFixed(2)}%</td></tr>))}</tbody> </table> </div> </div> ) : <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
                     </section>
 
                     {/* Seção 4: Tabela Mestra */}
@@ -457,35 +481,79 @@ export default function DebriefingConversaoPage() {
                         {mqlAnalysis.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center"> <div className="bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full overflow-hidden"> <div className="h-64 sm:h-72 md:h-80"><Pie ref={mqlChartRef} options={{...analysisPieOptions, plugins: {...analysisPieOptions.plugins, legend: { position: 'bottom', labels: {...commonChartOptions.plugins.legend.labels, color: chartColors.legend }}} }} data={mqlPieChartData} /></div> </div> <div className="bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow w-full">{renderAnalysisTable(mqlAnalysis, 'mql_level', 'mql_order')}</div> </div> ): <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
                     </section>
 
-                    {/* *** NOVAS SEÇÕES DE PERFIL *** */}
+                    {/* *** NOVAS SEÇÕES DE PERFIL (USA O NOVO COMPONENTE) *** */}
                     <section>
                         <SectionHeader icon={Group} title="Análise do Perfil Público" />
-                        {renderProfileAnalysisSection(perfilPublicoData, "público", perfilPublicoRefs)}
+                        <div className="space-y-4 md:space-y-6">
+                            {Object.keys(perfilPublicoData).length > 0 ? (
+                                Object.keys(perfilPublicoData).map((question) => (
+                                    <ProfileQuestion
+                                        key={question}
+                                        question={question}
+                                        questionData={perfilPublicoData[question]}
+                                        chartOptions={analysisPieOptions} 
+                                        chartColors={chartColors}
+                                        setChartRef={setPublicoRef}
+                                    />
+                                ))
+                            ) : (
+                                <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados de perfil público para análise.</p>
+                            )}
+                        </div>
                     </section>
 
                     <section>
                         <SectionHeader icon={MessageSquareText} title="Análise do Perfil de Inscritos" />
-                        {renderProfileAnalysisSection(perfilInscritosData, "inscritos", perfilInscritosRefs)}
+                        <div className="space-y-4 md:space-y-6">
+                            {Object.keys(perfilInscritosData).length > 0 ? (
+                                Object.keys(perfilInscritosData).map((question) => (
+                                    <ProfileQuestion
+                                        key={question}
+                                        question={question}
+                                        questionData={perfilInscritosData[question]}
+                                        chartOptions={analysisPieOptions}
+                                        chartColors={chartColors}
+                                        setChartRef={setInscritosRef}
+                                    />
+                                ))
+                            ) : (
+                                <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados de perfil de inscritos para análise.</p>
+                            )}
+                        </div>
                     </section>
 
-                    {/* ** NOVO: Perfil de Compradores com Gráfico/Lista ** */}
                     <section>
                         <SectionHeader icon={UserCircle} title="Análise do Perfil de Compradores" />
-                        {renderProfileAnalysisSection(perfilCompradoresData, "compradores", perfilCompradoresRefs)}
+                        <div className="space-y-4 md:space-y-6">
+                            {Object.keys(perfilCompradoresData).length > 0 ? (
+                                Object.keys(perfilCompradoresData).map((question) => (
+                                    <ProfileQuestion
+                                        key={question}
+                                        question={question}
+                                        questionData={perfilCompradoresData[question]}
+                                        chartOptions={analysisPieOptions}
+                                        chartColors={chartColors}
+                                        setChartRef={setCompradoresRef}
+                                    />
+                                ))
+                            ) : (
+                                <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados de perfil de compradores para análise.</p>
+                            )}
+                        </div>
                     </section>
 
                     {/* Seção Insights Sugeridos (Automático) */}
                     <section>
                          <SectionHeader icon={Lightbulb} title="Insights Sugeridos (Automático)" />
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                                <h3 className="text-lg font-semibold text-green-800 dark:text-green-300 mb-3">✅ Manter / Escalar:</h3>
-                                {automatedInsights?.escalar?.length > 0 ? ( <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 dark:text-gray-200"> {automatedInsights.escalar.map((item, index) => <li key={`esc-${index}`}>{item}</li>)} </ul> ) : ( <p className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhuma sugestão.</p> )}
-                            </div>
-                            <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-lg border border-yellow-200 dark:border-yellow-700">
-                                <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-3">⚠️ Ajustar / Otimizar:</h3>
-                                {automatedInsights?.ajustar?.length > 0 ? ( <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 dark:text-gray-200"> {automatedInsights.ajustar.map((item, index) => <li key={`adj-${index}`}>{item}</li>)} </ul> ) : ( <p className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhuma sugestão.</p> )}
-                            </div>
+                             <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                                 <h3 className="text-lg font-semibold text-green-800 dark:text-green-300 mb-3">✅ Manter / Escalar:</h3>
+                                 {automatedInsights?.escalar?.length > 0 ? ( <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 dark:text-gray-200"> {automatedInsights.escalar.map((item, index) => <li key={`esc-${index}`}>{item}</li>)} </ul> ) : ( <p className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhuma sugestão.</p> )}
+                             </div>
+                             <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-lg border border-yellow-200 dark:border-yellow-700">
+                                 <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-3">⚠️ Ajustar / Otimizar:</h3>
+                                 {automatedInsights?.ajustar?.length > 0 ? ( <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 dark:text-gray-200"> {automatedInsights.ajustar.map((item, index) => <li key={`adj-${index}`}>{item}</li>)} </ul> ) : ( <p className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhuma sugestão.</p> )}
+                             </div>
                          </div>
                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 italic">Insights baseados em Fontes, Score, MQL.</p>
                     </section>
@@ -502,20 +570,19 @@ export default function DebriefingConversaoPage() {
             <style jsx global>{`
                 /* Estilo para animação de spin (caso o Loader2 precise) */
                 @keyframes spin {
-                  from { transform: rotate(0deg); }
-                  to { transform: rotate(360deg); }
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
                 }
                 .animate-spin {
-                  animation: spin 1s linear infinite;
+                    animation: spin 1s linear infinite;
                 }
                 /* Esconde o botão de PDF ao imprimir */
                 @media print {
-                  .print-hide {
-                    display: none;
-                  }
+                    .print-hide {
+                        display: none;
+                    }
                 }
             `}</style>
         </div>
     );
 }
-
