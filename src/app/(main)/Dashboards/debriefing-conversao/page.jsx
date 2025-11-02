@@ -2,7 +2,7 @@
 'use client';
 
 // =================================================================
-// /// --- CÓDIGO v29 (Corrige erro de "duplicate key") --- ///
+// /// --- CÓDIGO v31.1 (Corrige vazamento de tabelas no mobile) --- ///
 // =================================================================
 
 import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
@@ -91,9 +91,9 @@ export default function DebriefingConversaoPage() {
 
     // Estados Gerais e de Dados
     const [launches, setLaunches] = useState([]);
-    const [selectedLaunch, setSelectedLaunch] = useState('');
+    const [selectedLaunch, setSelectedLaunch] = useState(''); // Começa vazio
     const [isLoadingLaunches, setIsLoadingLaunches] = useState(true);
-    const [isLoadingDebrief, setIsLoadingDebrief] = useState(true);
+    const [isLoadingDebrief, setIsLoadingDebrief] = useState(false); // Começa como false
     const [resumo, setResumo] = useState(null);
     const [movimentacao, setMovimentacao] = useState([]);
     const [fontes, setFontes] = useState([]);
@@ -102,11 +102,14 @@ export default function DebriefingConversaoPage() {
     const [mqlAnalysis, setMqlAnalysis] = useState([]);
     const [automatedInsights, setAutomatedInsights] = useState({ escalar: [], ajustar: [] });
     
-    // *** ESTADOS DE PERFIL ACTUALIZADOS ***
-    const [perfilPublicoData, setPerfilPublicoData] = useState({}); // Agrupado
-    const [perfilInscritosData, setPerfilInscritosData] = useState({}); // Agrupado
-    const [perfilCompradoresData, setPerfilCompradoresData] = useState({}); // Agrupado (NOVO)
-    const [topTwoAnswersData, setTopTwoAnswersData] = useState([]); // Mantido para a tabela resumo
+    // *** ESTADOS DE PERFIL ***
+    const [perfilPublicoData, setPerfilPublicoData] = useState({});
+    const [perfilInscritosData, setPerfilInscritosData] = useState({});
+    const [perfilCompradoresData, setPerfilCompradoresData] = useState({});
+    const [topTwoAnswersData, setTopTwoAnswersData] = useState([]);
+
+    // *** NOVO ESTADO: PERFIL DO COMPRADOR ***
+    const [buyerPersona, setBuyerPersona] = useState({ perfil_narrativo: null });
 
     // Estados e Refs para PDF
     const [isCapturingImages, setIsCapturingImages] = useState(false);
@@ -117,10 +120,9 @@ export default function DebriefingConversaoPage() {
     const fontesChartRef = useRef(null);
     const scoreChartRef = useRef(null);
     const mqlChartRef = useRef(null);
-    // *** REFS DE PERFIL ACTUALIZADOS ***
     const perfilPublicoRefs = useRef({});
     const perfilInscritosRefs = useRef({});
-    const perfilCompradoresRefs = useRef({}); // NOVO
+    const perfilCompradoresRefs = useRef({});
     
     // --- Funções estáveis (useCallback) para setar as refs ---
     const setPublicoRef = useCallback((question, el) => {
@@ -151,17 +153,53 @@ export default function DebriefingConversaoPage() {
         if (!userProfile || !supabase) { setIsLoadingLaunches(false); return; }; // Proteção
         setIsLoadingLaunches(true);
         const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id;
+        
         supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend })
-            .then(({ data, error }) => { if (error) throw error; const sorted = [...(data || [])].sort((a, b) => a.nome.localeCompare(b.nome)); setLaunches(sorted); if (sorted.length > 0) { const finished = sorted.find(l => l.status === 'Concluído'); const inProgress = sorted.find(l => l.status === 'Em andamento'); setSelectedLaunch(finished ? finished.id : (inProgress ? inProgress.id : sorted[0].id)); } })
-            .catch(err => toast.error("Erro lançamentos: " + err.message)).finally(() => setIsLoadingLaunches(false));
+            .then(({ data, error }) => { 
+                if (error) throw error; 
+                const sorted = [...(data || [])].sort((a, b) => a.nome.localeCompare(b.nome)); 
+                setLaunches(sorted); 
+            })
+            .catch(err => toast.error("Erro lançamentos: " + err.message))
+            .finally(() => setIsLoadingLaunches(false));
+            
     }, [userProfile, selectedClientId, supabase]);
 
     useEffect(() => {
         // Atualiza header com select de lançamento
         if (!setHeaderContent) return; // Proteção
-        const launchSelector = ( <select value={selectedLaunch} onChange={e => setSelectedLaunch(e.target.value)} disabled={isLoadingLaunches || launches.length === 0} className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2"> {isLoadingLaunches ? <option>Carregando...</option> : launches.length > 0 ? launches.map(l => <option key={l.id} value={l.id}>{l.codigo} ({l.status})</option>) : <option>Nenhum lançamento</option>} </select> );
+        
+        const launchSelector = ( 
+            <div>
+                {/* Label para acessibilidade, visualmente escondido */}
+                <label htmlFor="launch-selector" className="sr-only">Selecione o Lançamento</label>
+                <select 
+                    id="launch-selector"
+                    name="launch-selector"
+                    value={selectedLaunch} 
+                    onChange={e => setSelectedLaunch(e.target.value)} 
+                    disabled={isLoadingLaunches || launches.length === 0} 
+                    className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2"
+                >
+                    {isLoadingLaunches ? (
+                        <option>Carregando...</option> 
+                    ) : (
+                        <>
+                            <option value="">Selecione um lançamento...</option>
+                            {launches.length > 0 ? (
+                                launches.map(l => <option key={l.id} value={l.id}>{l.codigo} ({l.status})</option>)
+                            ) : (
+                                <option disabled>Nenhum lançamento</option>
+                            )}
+                        </>
+                    )}
+                </select>
+            </div> 
+        );
+        
         setHeaderContent({ title: 'Debriefing de Conversão', controls: launchSelector });
         return () => setHeaderContent({ title: '', controls: null });
+        
     }, [setHeaderContent, selectedLaunch, launches, isLoadingLaunches]);
 
     // Helper para agrupar dados de perfil por pergunta
@@ -170,32 +208,35 @@ export default function DebriefingConversaoPage() {
         return data.reduce((acc, curr) => {
             const q = curr.question_text || 'Sem Pergunta';
             acc[q] = acc[q] || [];
-            // Adiciona apenas os campos necessários
             acc[q].push({ answer: curr.answer_text, count: curr.answer_count, percentage: curr.answer_percentage });
             return acc;
         }, {});
     };
 
     const fetchDebriefData = useCallback(async () => {
-        // Busca todos os dados do debriefing via RPC
-        if (!supabase || !selectedLaunch || !userProfile) { // Proteção
-             console.warn("Supabase, selectedLaunch ou UserProfile não estão prontos. Abortando fetch.");
+        // Proteção: Não busca dados se não houver um lançamento selecionado
+        if (!supabase || !selectedLaunch || !userProfile) {
              setIsLoadingDebrief(false);
+             
+             if (!selectedLaunch) {
+                setResumo(null); setMovimentacao([]); setFontes([]); setTabelaMestra([]);
+                setScoreAnalysis([]); setMqlAnalysis([]); setAutomatedInsights({ escalar: [], ajustar: [] });
+                setPerfilPublicoData({}); setPerfilInscritosData({}); setPerfilCompradoresData({}); setTopTwoAnswersData([]);
+                setBuyerPersona({ perfil_narrativo: null });
+             }
              return;
         }
         
-        setChartImages(null); // Limpa imagens
-        // Limpa refs dos gráficos de perfil
+        setChartImages(null);
         perfilPublicoRefs.current = {};
         perfilInscritosRefs.current = {};
-        perfilCompradoresRefs.current = {}; // Limpa novo ref
+        perfilCompradoresRefs.current = {};
         setIsLoadingDebrief(true);
 
-        // Limpa estados de dados
         setResumo(null); setMovimentacao([]); setFontes([]); setTabelaMestra([]);
         setScoreAnalysis([]); setMqlAnalysis([]); setAutomatedInsights({ escalar: [], ajustar: [] });
-        // Limpa novos estados
         setPerfilPublicoData({}); setPerfilInscritosData({}); setPerfilCompradoresData({}); setTopTwoAnswersData([]);
+        setBuyerPersona({ perfil_narrativo: null });
 
         try {
             const clientIdToSend = userProfile.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile.cliente_id;
@@ -207,22 +248,21 @@ export default function DebriefingConversaoPage() {
                 supabase.rpc('get_debrief_score_range_analysis', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }),
                 supabase.rpc('get_debrief_mql_analysis', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }),
                 supabase.rpc('get_debrief_automated_insights', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }),
-                // *** NOVAS CHAMADAS RPC ***
                 supabase.rpc('get_debrief_perfil_publico', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }),
                 supabase.rpc('get_debrief_perfil_inscritos', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }),
-                supabase.rpc('get_debrief_perfil_compradores', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }), // NOVO
+                supabase.rpc('get_debrief_perfil_compradores', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }),
                 supabase.rpc('get_debrief_top_two_answers', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }),
+                supabase.rpc('get_debrief_buyer_persona_narrative', { p_launch_id: selectedLaunch, p_client_id: clientIdToSend }),
             ];
 
             const results = await Promise.allSettled(calls);
 
-            // Funções auxiliares para tratar resultados
             const handleResult = (result, setter, errorMessage, group = false) => {
                 if (result.status === 'fulfilled' && result.value && !result.value.error) {
                     const data = result.value.data;
                     if (group) {
                         setter(groupProfileData(data));
-                    } else if (setter === setResumo) { // ** CORREÇÃO PARA KPIs **
+                    } else if (setter === setResumo) {
                         setter(Array.isArray(data) ? data[0] : data || null);
                     } else if (Array.isArray(data)) {
                         setter(data);
@@ -237,7 +277,6 @@ export default function DebriefingConversaoPage() {
                 }
             };
 
-            // Trata resultados e atualiza estados
             handleResult(results[0], setResumo, 'Erro Resumo');
             handleResult(results[1], setMovimentacao, 'Erro Mov.');
             handleResult(results[2], setFontes, 'Erro Fontes');
@@ -245,11 +284,11 @@ export default function DebriefingConversaoPage() {
             handleResult(results[4], setScoreAnalysis, 'Erro Score');
             handleResult(results[5], setMqlAnalysis, 'Erro MQL');
             handleResult(results[6], (data) => setAutomatedInsights(data || { escalar: [], ajustar: [] }), 'Erro Insights');
-            // *** TRATA NOVOS RESULTADOS ***
             handleResult(results[7], setPerfilPublicoData, 'Erro Perfil Público', true);
             handleResult(results[8], setPerfilInscritosData, 'Erro Perfil Inscritos', true);
-            handleResult(results[9], setPerfilCompradoresData, 'Erro Perfil Compradores', true); // NOVO (agrupado)
+            handleResult(results[9], setPerfilCompradoresData, 'Erro Perfil Compradores', true);
             handleResult(results[10], setTopTwoAnswersData, 'Erro Top 2 Respostas');
+            handleResult(results[11], (data) => setBuyerPersona(data || { perfil_narrativo: null }), 'Erro Perfil Comprador');
 
         } catch (err) {
             toast.error(`Erro fatal ao buscar dados: ${err.message}`);
@@ -258,7 +297,16 @@ export default function DebriefingConversaoPage() {
         }
     }, [selectedLaunch, supabase, userProfile, selectedClientId]);
 
-    useEffect(() => { fetchDebriefData(); }, [fetchDebriefData]); // Busca dados quando selectedLaunch muda
+    useEffect(() => { 
+        if (selectedLaunch) {
+            fetchDebriefData(); 
+        } else {
+            setResumo(null); setMovimentacao([]); setFontes([]); setTabelaMestra([]);
+            setScoreAnalysis([]); setMqlAnalysis([]); setAutomatedInsights({ escalar: [], ajustar: [] });
+            setPerfilPublicoData({}); setPerfilInscritosData({}); setPerfilCompradoresData({}); setTopTwoAnswersData([]);
+            setBuyerPersona({ perfil_narrativo: null });
+        }
+    }, [fetchDebriefData, selectedLaunch]);
 
     // --- Lógica de Captura de Imagens ---
     const captureChartImages = () => {
@@ -269,15 +317,13 @@ export default function DebriefingConversaoPage() {
                 fontes: fontesChartRef.current?.toBase64Image(),
                 scoreAnalysis: scoreChartRef.current?.toBase64Image(),
                 mqlAnalysis: mqlChartRef.current?.toBase64Image(),
-                // *** NOVOS GRÁFICOS DE PERFIL ***
                 perfilPublico: {},
                 perfilInscritos: {},
-                perfilCompradores: {}, // NOVO
+                perfilCompradores: {},
             };
-            // Captura gráficos dinâmicos (perfil)
             for (const pergunta in perfilPublicoRefs.current) { if (perfilPublicoRefs.current[pergunta]) newImages.perfilPublico[pergunta] = perfilPublicoRefs.current[pergunta].toBase64Image(); }
             for (const pergunta in perfilInscritosRefs.current) { if (perfilInscritosRefs.current[pergunta]) newImages.perfilInscritos[pergunta] = perfilInscritosRefs.current[pergunta].toBase64Image(); }
-            for (const pergunta in perfilCompradoresRefs.current) { if (perfilCompradoresRefs.current[pergunta]) newImages.perfilCompradores[pergunta] = perfilCompradoresRefs.current[pergunta].toBase64Image(); } // NOVO
+            for (const pergunta in perfilCompradoresRefs.current) { if (perfilCompradoresRefs.current[pergunta]) newImages.perfilCompradores[pergunta] = perfilCompradoresRefs.current[pergunta].toBase64Image(); }
 
             setChartImages(newImages);
             toast.success('Gráficos capturados! Pronto para baixar.');
@@ -291,7 +337,7 @@ export default function DebriefingConversaoPage() {
     };
 
     // --- Configurações dos Gráficos Chart.js ---
-    useEffect(() => { // Atualiza cores se o tema mudar (opcional)
+    useEffect(() => {
         const isDark = document.documentElement.classList.contains('dark');
         const updatedColors = {
             legend: isDark ? '#cbd5e1' : '#4b5563',
@@ -300,10 +346,9 @@ export default function DebriefingConversaoPage() {
             border: isDark ? '#1f2937' : '#ffffff',
         };
         setChartColors(updatedColors);
-        // Força a re-renderização dos gráficos se as cores mudarem
         ChartJS.defaults.color = updatedColors.ticks;
         ChartJS.defaults.borderColor = updatedColors.grid;
-    }, []); // Roda apenas no mount
+    }, []);
 
     const tooltipLabelCallback = function(context) { let label = context.dataset.label || context.label || ''; if (label) { label += ': '; } let value = context.parsed?.y ?? context.parsed ?? null; if (value !== null) { label += value.toLocaleString('pt-BR'); } else { label += 'N/A'; } if (context.chart.config.type === 'pie' && value !== null) { let total = context.chart.data.datasets[0].data.reduce((a, b) => (a || 0) + (b || 0), 0); let percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0.0%'; label += ` (${percentage})`; } return label; };
     const commonChartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: chartColors.legend, boxWidth: 10, padding: 10, font: { size: 10 } } }, title: { display: false }, tooltip: { bodyFont: { size: 10 }, titleFont: { size: 12 }, callbacks: { label: tooltipLabelCallback }}}, scales: { x: { ticks: { color: chartColors.ticks, maxRotation: 0, minRotation: 0, font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: chartColors.ticks, font: { size: 9 } }, grid: { color: chartColors.grid } } }, layout: { padding: { top: 5, left: 0, right: 5, bottom: 0 } } };
@@ -317,6 +362,8 @@ export default function DebriefingConversaoPage() {
 
 
     // --- FUNÇÕES AUXILIARES DE RENDERIZAÇÃO ---
+    
+    // (renderAnalysisTable - Sem alterações, correção v30.7 mantida)
     const renderAnalysisTable = (data, titleKey, orderKey) => {
         if (!data || data.length === 0) { return <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados.</p>; }
         const sortedData = orderKey ? [...data].sort((a, b) => (b[orderKey] ?? 0) - (a[orderKey] ?? 0)) : data;
@@ -324,10 +371,12 @@ export default function DebriefingConversaoPage() {
         const tdClass = "px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100";
         const tdPrimaryClass = tdClass + " font-medium text-gray-900 dark:text-white";
         const tdBoldClass = tdClass + " font-bold text-gray-800 dark:text-white";
-        return ( <div className="overflow-x-auto w-full"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead className="bg-gray-50 dark:bg-gray-700"><tr><th className={thClass}>{titleKey.replace(/_/g, ' ')}</th><th className={thClass}>Check-ins</th><th className={thClass} title="Contribuição % do Total de Check-ins do Lançamento">% Ck Total</th><th className={thClass}>Compras</th><th className={thClass} title="Contribuição % do Total de Compras do Lançamento">% Compra Total</th></tr></thead><tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">{sortedData.map((row, index) => (<tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className={tdPrimaryClass}>{row[titleKey]}</td><td className={tdClass}>{(row.checkins || 0).toLocaleString('pt-BR')}</td><td className={tdClass}>{parseFloat(row.tx_checkin_contribution || 0).toFixed(2)}%</td><td className={tdClass}>{(row.vendas || 0).toLocaleString('pt-BR')}</td><td className={tdBoldClass}>{parseFloat(row.tx_venda_contribution || 0).toFixed(2)}%</td></tr>))}</tbody></table></div> );
+        return ( <div className="overflow-x-auto w-full"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead className="bg-gray-50 dark:bg-gray-700"><tr><th className={thClass}>{titleKey.replace(/_/g, ' ')}</th><th className={thClass}>Check-ins</th><th className={thClass} title="Contribuição % do Total de Check-ins do Lançamento">% Ck Total</th><th className={thClass}>Compras</th><th className={thClass} title="Contribuição % do Total de Compras do Lançamento">% Compra Total</th></tr></thead><tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">{
+            sortedData.map((row, index) => (<tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className={tdPrimaryClass}>{row[titleKey]}</td><td className={tdClass}>{(row.checkins || 0).toLocaleString('pt-BR')}</td><td className={tdClass}>{parseFloat(row.tx_checkin_contribution || 0).toFixed(2)}%</td><td className={tdClass}>{(row.vendas || 0).toLocaleString('pt-BR')}</td><td className={tdBoldClass}>{parseFloat(row.tx_venda_contribution || 0).toFixed(2)}%</td></tr>))
+        }</tbody></table></div> );
     };
 
-    // --- Componente interno para renderizar cada gráfico de perfil ---
+    // (ProfileQuestion - Sem alterações, correção v30.8 mantida)
     const ProfileQuestion = React.memo(({ question, questionData, chartOptions, chartColors, setChartRef }) => {
         const chartRef = useRef(null);
         const pieColors = ['rgba(16, 185, 129, 0.7)', 'rgba(59, 130, 246, 0.7)', 'rgba(234, 179, 8, 0.7)', 'rgba(239, 68, 68, 0.7)', 'rgba(139, 92, 246, 0.7)', 'rgba(107, 114, 128, 0.7)'];
@@ -349,10 +398,9 @@ export default function DebriefingConversaoPage() {
         }, [setChartRef, question]); 
 
         return (
-            <div className="space-y-4"> {/* Wrapper para cada pergunta (Título + Grid) */}
+            <div className="space-y-4">
                 <h4 className="font-semibold text-gray-800 dark:text-gray-100 text-sm md:text-base">{question}</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch"> {/* Grid para Gráfico e Lista */}
-                    {/* Card 1: Gráfico */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
                     <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-lg shadow flex items-center justify-center">
                         <div className="h-64 w-full">
                             <Pie
@@ -362,13 +410,12 @@ export default function DebriefingConversaoPage() {
                             />
                         </div>
                     </div>
-                    {/* Card 2: Lista */}
                     <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-lg shadow">
                         <ul className="space-y-1 overflow-y-auto max-h-64 pr-2 w-full">
                             {questionData.sort((a, b) => (b.count ?? 0) - (a.count ?? 0)).map((ans, aIndex) => (
-                                <li key={aIndex} className="flex justify-between items-center text-xs md:text-sm text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 last:border-b-0 py-2">
-                                    <span className="truncate pr-2">{ans.answer}</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-100 whitespace-nowrap">{ans.count} ({ans.percentage}%)</span>
+                                <li key={aIndex} className="flex justify-between items-start text-xs md:text-sm text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 last:border-b-0 py-2">
+                                    <span className="pr-4">{ans.answer}</span>
+                                    <span className="font-medium text-gray-800 dark:text-gray-100 text-right flex-shrink-0 ml-2">{ans.count} ({ans.percentage}%)</span>
                                 </li>
                             ))}
                         </ul>
@@ -379,36 +426,30 @@ export default function DebriefingConversaoPage() {
     });
     ProfileQuestion.displayName = 'ProfileQuestion'; 
 
-
+    // (renderTopTwoTable - Sem alterações, correção v30.7 mantida)
     const renderTopTwoTable = (topTwoData, profileQuestions) => {
         if (!topTwoData || topTwoData.length === 0) { return <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados para o resumo.</p>; }
         const thClass = "px-2 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"; const tdClass = "px-2 py-2 whitespace-normal text-xs text-gray-700 dark:text-gray-100"; const groupedTopTwo = topTwoData.reduce((acc, curr) => { acc[curr.question_text] = acc[curr.question_text] || []; acc[curr.question_text].push({ answer: curr.answer_text, percentage: curr.answer_percentage }); return acc; }, {});
         
-        // --- 💡💡 CORREÇÃO: Remove duplicatas antes de filtrar 💡💡 ---
         const allQuestions = [ ...profileQuestions.publico, ...profileQuestions.inscritos, ...profileQuestions.compradores ];
-        const uniqueQuestions = [...new Set(allQuestions)]; // Garante que cada pergunta só apareça uma vez
-        const orderedQuestions = uniqueQuestions.filter(q => groupedTopTwo[q]); // Filtra pelas perguntas que temos dados
-        // --- FIM DA CORREÇÃO ---
+        const uniqueQuestions = [...new Set(allQuestions)]; 
+        const orderedQuestions = uniqueQuestions.filter(q => groupedTopTwo[q]);
 
-        return ( <div className="overflow-x-auto w-full bg-white dark:bg-gray-800 shadow rounded-lg p-2 md:p-4"> <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"> <thead className="bg-gray-50 dark:bg-gray-700"> <tr> <th className={`${thClass} w-1/2`}>Pergunta</th> <th className={thClass}>1ª Resposta Mais Comum</th> <th className={thClass}>2ª Resposta Mais Comum</th> </tr> </thead>
-        <tbody className="divide-y divide-gray-200 dark:divide-gray-700"> 
-          {orderedQuestions.map((questionText) => { // Agora `questionText` é garantidamente único
+        return ( <div className="overflow-x-auto w-full bg-white dark:bg-gray-800 shadow rounded-lg p-2 md:p-4"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead className="bg-gray-50 dark:bg-gray-700"><tr><th className={`${thClass} w-1/2`}>Pergunta</th><th className={thClass}>1ª Resposta Mais Comum</th><th className={thClass}>2ª Resposta Mais Comum</th></tr></thead><tbody className="divide-y divide-gray-200 dark:divide-gray-700">{
+          orderedQuestions.map((questionText) => {
             const answers = groupedTopTwo[questionText] || []; 
             const top1 = answers[0] ? `${answers[0].answer} (${answers[0].percentage}%)` : '-'; 
             const top2 = answers[1] ? `${answers[1].answer} (${answers[1].percentage}%)` : '-'; 
             return ( 
-            // A `key` agora é única
             <tr key={questionText} className="odd:bg-white dark:odd:bg-gray-800 even:bg-gray-50 dark:even:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600"> 
               <td className={`${tdClass} font-medium text-gray-900 dark:text-white w-1/2`}>{questionText}</td> 
               <td className={tdClass}>{top1}</td> 
               <td className={tdClass}>{top2}</td> 
             </tr> ); 
-          })} 
-        </tbody> 
-        </table> </div> );
+          })
+        }</tbody></table></div> );
     };
 
-    // ** LISTA DE PERGUNTAS VEM DA PLANILHA **
     const profileQuestionLists = {
         publico: [ 'Qual a sua idade?', 'Selecione o seu estado abaixo:', 'Qual é a sua renda mensal?', 'Como voce conheceu esta campanha?', 'Voce trabalha ou tem interesse em atuar na area relacionada ao curso?', 'Você já comprou cursos online?' ],
         inscritos: [ 'Qual o seu nivel de interesse em fazer um curso online nos proximos 30 dias?', 'Quanto tempo por semana voce tem disponivel para estudar online?', 'Voce ja participou de algum curso online anteriormente?', 'Voce esta disposto a investir em um curso pago se o conteudo atender suas expectativas?', 'Qual o seu principal objetivo ao buscar um curso online?', 'Quanto você estaria disposto(a) a investir para viver essa experiência?' ],
@@ -434,54 +475,134 @@ export default function DebriefingConversaoPage() {
                     scoreAnalysis={scoreAnalysis}
                     mqlAnalysis={mqlAnalysis}
                     automatedInsights={automatedInsights}
-                    // *** PASSA OS 3 PERFIS DE DADOS PARA O PDF ***
                     perfilPublicoData={perfilPublicoData}
                     perfilInscritosData={perfilInscritosData}
-                    perfilCompradoresData={perfilCompradoresData} // NOVO
+                    perfilCompradoresData={perfilCompradoresData}
                     topTwoAnswersData={topTwoAnswersData}
                     profileQuestionLists={profileQuestionLists}
+                    buyerPersona={buyerPersona}
                />
             </div>
 
-            {isLoadingDebrief || isLoadingLaunches ? <Spinner /> : (
+            {isLoadingDebrief && <Spinner />}
+
+            {!isLoadingDebrief && !selectedLaunch && (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-20">
+                    <BarChart2 size={40} className="mx-auto mb-2" />
+                    <h3 className="text-lg font-semibold">Selecione um lançamento</h3>
+                    <p className="text-sm">Escolha um lançamento no menu acima para carregar o debriefing.</p>
+                </div>
+            )}
+            
+            {!isLoadingDebrief && selectedLaunch && (
                 <div className="space-y-12">
                     {/* Seção 1: Resumo */}
                     <section>
                         <SectionHeader icon={Database} title="Resumo Executivo" />
-                         {!resumo ? <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p> : ( <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4"> <KpiCard title="Total Leads" value={(resumo.total_leads || 0).toLocaleString('pt-BR')} /> <KpiCard title="Total Check-ins" value={(resumo.total_checkins || 0).toLocaleString('pt-BR')} /> <KpiCard title="Total Compras" value={(resumo.total_vendas || 0).toLocaleString('pt-BR')} /> <KpiCard title="Tx. L p/ C" value={`${parseFloat(resumo.tx_lead_checkin || 0).toFixed(2)}%`} /> <KpiCard title="Tx. C p/ Cp" value={`${parseFloat(resumo.tx_checkin_venda || 0).toFixed(2)}%`} /> <KpiCard title="Tx. L p/ Cp" value={`${parseFloat(resumo.tx_lead_venda || 0).toFixed(2)}%`} /> </div> )}
+                         {/* *** 1ª CORREÇÃO: "grid-cols-1" (pilha) para mobile, "sm:grid-cols-3" para telas > sm *** */}
+                         {!resumo ? <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p> : ( <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4"> <KpiCard title="Total Leads" value={(resumo.total_leads || 0).toLocaleString('pt-BR')} /> <KpiCard title="Total Check-ins" value={(resumo.total_checkins || 0).toLocaleString('pt-BR')} /> <KpiCard title="Total Compras" value={(resumo.total_vendas || 0).toLocaleString('pt-BR')} /> <KpiCard title="Tx. L p/ C" value={`${parseFloat(resumo.tx_lead_checkin || 0).toFixed(2)}%`} /> <KpiCard title="Tx. C p/ Cp" value={`${parseFloat(resumo.tx_checkin_venda || 0).toFixed(2)}%`} /> <KpiCard title="Tx. L p/ Cp" value={`${parseFloat(resumo.tx_lead_venda || 0).toFixed(2)}%`} /> </div> )}
                     </section>
 
                     {/* Seção 2: Movimentação Diária */}
                     <section>
                         <SectionHeader icon={BarChart2} title="Movimentação Diária" />
-                        <div className="w-full overflow-hidden bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow"> <div className="h-72 sm:h-80 md:h-96"> {movimentacao.length > 0 ? <Bar ref={movimentacaoChartRef} options={barChartOptions} data={barChartData} /> : <p className="text-center pt-16 text-gray-500 dark:text-gray-400">Sem dados...</p>} </div> </div>
+                        {/* *** 2ª CORREÇÃO: "overflow-x-auto" no container e "min-w-[600px]" no filho *** */}
+                        <div className="w-full overflow-x-auto bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow"> 
+                            <div className="h-72 sm:h-80 md:h-96 min-w-[600px]">
+                                {movimentacao.length > 0 ? <Bar ref={movimentacaoChartRef} options={barChartOptions} data={barChartData} /> : <p className="text-center pt-16 text-gray-500 dark:text-gray-400">Sem dados...</p>} 
+                            </div> 
+                        </div>
                     </section>
 
                     {/* Seção 3: Fontes de Tráfego */}
                     <section>
                         <SectionHeader icon={PieChart} title="Análise de Fontes de Tráfego" />
-                        {fontes.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-3 gap-6"> <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full overflow-hidden"> <div className="h-64 sm:h-72 md:h-80"> <Pie ref={fontesChartRef} options={pieChartOptions} data={pieChartData} /> </div> </div> <div className="lg:col-span-2 overflow-x-auto bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow"> <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"> <thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Fonte</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Compras</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Conversão Lead p/ Compra">Tx. L/Cp</th></tr></thead> <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gamma-700">{fontes.map(f => (<tr key={f.fonte} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{f.fonte}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.leads_gerados || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.total_checkins || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.vendas || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-semibold text-gray-800 dark:text-white">{parseFloat(f.tx_lead_venda || 0).toFixed(2)}%</td></tr>))}</tbody> </table> </div> </div> ) : <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
+                        {fontes.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-3 gap-6"> 
+                        
+                        {/* *** 3ª CORREÇÃO: Removido 'overflow-hidden' *** */}
+                        <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full"> 
+                            <div className="h-64 sm:h-72 md:h-80"> 
+                                <Pie ref={fontesChartRef} options={pieChartOptions} data={pieChartData} /> 
+                            </div> 
+                        </div> 
+                        
+                        {/* *** 4ª CORREÇÃO: Adicionado 'w-full' para consertar o overflow *** */}
+                        <div className="lg:col-span-2 overflow-x-auto w-full bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Fonte</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Compras</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Conversão Lead p/ Compra">Tx. L/Cp</th></tr></thead><tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">{
+                            fontes.map(f => (<tr key={f.fonte} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{f.fonte}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.leads_gerados || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.total_checkins || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.vendas || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-semibold text-gray-800 dark:text-white">{parseFloat(f.tx_lead_venda || 0).toFixed(2)}%</td></tr>))
+                        }</tbody></table></div> </div> ) : <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
                     </section>
 
                     {/* Seção 4: Tabela Mestra */}
                     <section>
                         <SectionHeader icon={ListChecks} title="Análise de Campanhas e Criativos (Tabela Mestra)" />
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 -mt-2">Esta tabela detalha a performance de cada campanha e criativo.</p> <div className="overflow-x-auto bg-white dark:bg-gray-800 shadow rounded-lg p-2 md:p-4"> <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"> <thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Campanha</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Criativo</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Contribuição % do Total de Check-ins do Lançamento">Ck / Total Ck</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Compras</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Check-in p/ Compra">Tx. C/Cp</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Lead p/ Compra">Tx. L/Cp</th></tr></thead> <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gamma-700"> {tabelaMestra.length > 0 ? tabelaMestra.map((row, index) => (<tr key={`${row.utm_campaign}-${row.utm_content}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{row.utm_campaign || '(nd)'}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{row.utm_content || '(nd)'}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.leads || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.checkins || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{parseFloat(row.tx_lead_checkin_contribution || 0).toFixed(2)}%</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.vendas || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{parseFloat(row.tx_checkin_venda || 0).toFixed(2)}%</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-bold text-gray-800 dark:text-white">{parseFloat(row.tx_lead_venda || 0).toFixed(2)}%</td></tr>)) : ( <tr><td colSpan="8" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">Nenhum dado...</td></tr> )} </tbody> </table> </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 -mt-2">Esta tabela detalha a performance de cada campanha e criativo.</p>
+                        
+                        {/* *** 5ª CORREÇÃO: Adicionado 'w-full' para consertar o overflow *** */}
+                        <div className="overflow-x-auto w-full bg-white dark:bg-gray-800 shadow rounded-lg p-2 md:p-4"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Campanha</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Criativo</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Contribuição % do Total de Check-ins do Lançamento">Ck / Total Ck</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Compras</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Check-in p/ Compra">Tx. C/Cp</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Lead p/ Compra">Tx. L/Cp</th></tr></thead><tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">{
+                        tabelaMestra.length > 0 ? tabelaMestra.map((row, index) => (<tr key={`${row.utm_campaign}-${row.utm_content}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{row.utm_campaign || '(nd)'}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{row.utm_content || '(nd)'}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.leads || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.checkins || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{parseFloat(row.tx_lead_checkin_contribution || 0).toFixed(2)}%</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.vendas || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{parseFloat(row.tx_checkin_venda || 0).toFixed(2)}%</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-bold text-gray-800 dark:text-white">{parseFloat(row.tx_lead_venda || 0).toFixed(2)}%</td></tr>)) : ( <tr><td colSpan="8" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">Nenhum dado...</td></tr> )
+                        }</tbody></table></div>
                     </section>
 
                     {/* Seção Análise por Faixa de Score */}
                     <section>
                         <SectionHeader icon={Star} title="Análise por Faixa de Score (Check-ins)" />
-                        {scoreAnalysis.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center"> <div className="bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full overflow-hidden"> <div className="h-64 sm:h-72 md:h-80"><Pie ref={scoreChartRef} options={{...analysisPieOptions, plugins: {...analysisPieOptions.plugins, legend: { position: 'bottom', labels: {...commonChartOptions.plugins.legend.labels, color: chartColors.legend }}} }} data={scorePieChartData} /></div> </div> <div className="bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow w-full">{renderAnalysisTable(scoreAnalysis, 'score_range_name', 'score_range_order')}</div> </div> ) : <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
+                        {scoreAnalysis.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center"> 
+                        
+                        {/* *** 6ª CORREÇÃO: Removido 'overflow-hidden' *** */}
+                        <div className="bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full"> 
+                            <div className="h-64 sm:h-72 md:h-80"><Pie ref={scoreChartRef} options={{...analysisPieOptions, plugins: {...analysisPieOptions.plugins, legend: { position: 'bottom', labels: {...commonChartOptions.plugins.legend.labels, color: chartColors.legend }}} }} data={scorePieChartData} /></div> 
+                        </div> 
+                        <div className="bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow w-full">{renderAnalysisTable(scoreAnalysis, 'score_range_name', 'score_range_order')}</div> </div> ) : <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
                     </section>
 
                     {/* Seção Análise por Nível MQL */}
                     <section>
                         <SectionHeader icon={UserCheck} title="Análise por Nível MQL (Check-ins)" />
-                        {mqlAnalysis.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center"> <div className="bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full overflow-hidden"> <div className="h-64 sm:h-72 md:h-80"><Pie ref={mqlChartRef} options={{...analysisPieOptions, plugins: {...analysisPieOptions.plugins, legend: { position: 'bottom', labels: {...commonChartOptions.plugins.legend.labels, color: chartColors.legend }}} }} data={mqlPieChartData} /></div> </div> <div className="bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow w-full">{renderAnalysisTable(mqlAnalysis, 'mql_level', 'mql_order')}</div> </div> ): <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
+                        {mqlAnalysis.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center"> 
+                        
+                        {/* *** 7ª CORREÇÃO: Removido 'overflow-hidden' *** */}
+                        <div className="bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full"> 
+                            <div className="h-64 sm:h-72 md:h-80"><Pie ref={mqlChartRef} options={{...analysisPieOptions, plugins: {...analysisPieOptions.plugins, legend: { position: 'bottom', labels: {...commonChartOptions.plugins.legend.labels, color: chartColors.legend }}} }} data={mqlPieChartData} /></div> 
+                        </div> 
+                        <div className="bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow w-full">{renderAnalysisTable(mqlAnalysis, 'mql_level', 'mql_order')}</div> </div> ): <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
                     </section>
 
-                    {/* *** NOVAS SEÇÕES DE PERFIL (USA O NOVO COMPONENTE) *** */}
+                    {/* *** SEÇÃO: PERFIL DO COMPRADOR IDEAL *** */}
+                    <section>
+                         <SectionHeader icon={Users} title="Perfil do Comprador Ideal (Automático)" />
+                         <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow">
+                            {buyerPersona?.perfil_narrativo ? (
+                                <p className="text-base md:text-lg text-gray-800 dark:text-gray-100 leading-relaxed italic">
+                                    {buyerPersona.perfil_narrativo}
+                                </p>
+                            ) : (
+                                <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                                    Sem dados suficientes do perfil dos compradores para gerar um resumo.
+                                </p>
+                            )}
+                         </div>
+                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 italic">
+                            Perfil baseado nas respostas mais comuns do público que realizou a compra.
+                         </p>
+                    </section>
+
+                    {/* Seção Insights Sugeridos (Automático) */}
+                    <section>
+                         <SectionHeader icon={Lightbulb} title="Insights Sugeridos (Automático)" />
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                                 <h3 className="text-lg font-semibold text-green-800 dark:text-green-300 mb-3">✅ Manter / Escalar:</h3>
+                                 {automatedInsights?.escalar?.length > 0 ? ( <ul className="list-disc list-inside space-y-2 text-sm text-gray-700 dark:text-gray-200"> {automatedInsights.escalar.map((item, index) => <li key={`esc-${index}`}>{item}</li>)} </ul> ) : ( <p className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhuma sugestão clara de alta performance encontrada.</p> )}
+                             </div>
+                             <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-lg border border-yellow-200 dark:border-yellow-700">
+                                 <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-3">⚠️ Ajustar / Otimizar:</h3>
+                                 {automatedInsights?.ajustar?.length > 0 ? ( <ul className="list-disc list-inside space-y-2 text-sm text-gray-700 dark:text-gray-200"> {automatedInsights.ajustar.map((item, index) => <li key={`adj-${index}`}>{item}</li>)} </ul> ) : ( <p className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhum gargalo de baixa performance encontrado.</p> )}
+                             </div>
+                         </div>
+                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 italic">Insights baseados em Fontes, Campanhas, Score e MQL, filtrando dados irrelevantes.</p>
+                    </section>
+
+                    {/* *** SEÇÕES DE PERFIL (GRÁFICOS) *** */}
                     <section>
                         <SectionHeader icon={Group} title="Análise do Perfil Público" />
                         <div className="space-y-4 md:space-y-6">
@@ -542,23 +663,7 @@ export default function DebriefingConversaoPage() {
                         </div>
                     </section>
 
-                    {/* Seção Insights Sugeridos (Automático) */}
-                    <section>
-                         <SectionHeader icon={Lightbulb} title="Insights Sugeridos (Automático)" />
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
-                                 <h3 className="text-lg font-semibold text-green-800 dark:text-green-300 mb-3">✅ Manter / Escalar:</h3>
-                                 {automatedInsights?.escalar?.length > 0 ? ( <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 dark:text-gray-200"> {automatedInsights.escalar.map((item, index) => <li key={`esc-${index}`}>{item}</li>)} </ul> ) : ( <p className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhuma sugestão.</p> )}
-                             </div>
-                             <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-lg border border-yellow-200 dark:border-yellow-700">
-                                 <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-3">⚠️ Ajustar / Otimizar:</h3>
-                                 {automatedInsights?.ajustar?.length > 0 ? ( <ul className="list-disc list-inside space-y-1 text-sm text-gray-700 dark:text-gray-200"> {automatedInsights.ajustar.map((item, index) => <li key={`adj-${index}`}>{item}</li>)} </ul> ) : ( <p className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhuma sugestão.</p> )}
-                             </div>
-                         </div>
-                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 italic">Insights baseados em Fontes, Score, MQL.</p>
-                    </section>
-
-                    {/* *** NOVA SEÇÃO TABELA RESUMO TOP 2 *** */}
+                    {/* *** SEÇÃO TABELA RESUMO TOP 2 *** */}
                     <section>
                          <SectionHeader icon={ListChecks} title="Resumo: Top 2 Respostas por Pergunta" />
                          {renderTopTwoTable(topTwoAnswersData, profileQuestionLists)}
@@ -581,6 +686,18 @@ export default function DebriefingConversaoPage() {
                     .print-hide {
                         display: none;
                     }
+                }
+                /* Classe para esconder labels de acessibilidade */
+                .sr-only {
+                    position: absolute;
+                    width: 1px;
+                    height: 1px;
+                    padding: 0;
+                    margin: -1px;
+                    overflow: hidden;
+                    clip: rect(0, 0, 0, 0);
+                    white-space: nowrap;
+                    border-width: 0;
                 }
             `}</style>
         </div>
