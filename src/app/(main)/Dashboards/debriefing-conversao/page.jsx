@@ -2,7 +2,7 @@
 'use client';
 
 // =================================================================
-// /// --- CÓDIGO v31.1 (Corrige vazamento de tabelas no mobile) --- ///
+// /// --- CÓDIGO v31.4 (Layout, Perfil Dinâmico, Oculta Seção Vazia) --- ///
 // =================================================================
 
 import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
@@ -119,7 +119,7 @@ export default function DebriefingConversaoPage() {
     const movimentacaoChartRef = useRef(null);
     const fontesChartRef = useRef(null);
     const scoreChartRef = useRef(null);
-    const mqlChartRef = useRef(null);
+    const mqlChartRef = useRef(null); // <<< DECLARADO CORRETAMENTE (MQL)
     const perfilPublicoRefs = useRef({});
     const perfilInscritosRefs = useRef({});
     const perfilCompradoresRefs = useRef({});
@@ -363,7 +363,7 @@ export default function DebriefingConversaoPage() {
 
     // --- FUNÇÕES AUXILIARES DE RENDERIZAÇÃO ---
     
-    // (renderAnalysisTable - Sem alterações, correção v30.7 mantida)
+    // *** CORREÇÃO: Aplicado 'overflow-x-auto' ao 'div' retornado ***
     const renderAnalysisTable = (data, titleKey, orderKey) => {
         if (!data || data.length === 0) { return <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados.</p>; }
         const sortedData = orderKey ? [...data].sort((a, b) => (b[orderKey] ?? 0) - (a[orderKey] ?? 0)) : data;
@@ -426,7 +426,7 @@ export default function DebriefingConversaoPage() {
     });
     ProfileQuestion.displayName = 'ProfileQuestion'; 
 
-    // (renderTopTwoTable - Sem alterações, correção v30.7 mantida)
+    // *** CORREÇÃO: Aplicado 'overflow-x-auto' ao 'div' retornado ***
     const renderTopTwoTable = (topTwoData, profileQuestions) => {
         if (!topTwoData || topTwoData.length === 0) { return <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados para o resumo.</p>; }
         const thClass = "px-2 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"; const tdClass = "px-2 py-2 whitespace-normal text-xs text-gray-700 dark:text-gray-100"; const groupedTopTwo = topTwoData.reduce((acc, curr) => { acc[curr.question_text] = acc[curr.question_text] || []; acc[curr.question_text].push({ answer: curr.answer_text, percentage: curr.answer_percentage }); return acc; }, {});
@@ -458,6 +458,12 @@ export default function DebriefingConversaoPage() {
 
 
     // --- Renderização (JSX) ---
+    
+    // *** CORREÇÃO: Título e Legenda Dinâmicos ***
+    const hasSales = (resumo?.total_vendas ?? 0) > 0;
+    const profileTitle = hasSales ? "Perfil do Comprador Ideal (Automático)" : "Perfil do Lead Engajado (Automático)";
+    const profileCaption = hasSales ? "Perfil baseado nas respostas mais comuns do público que realizou a compra." : "Perfil baseado nas respostas mais comuns do público que realizou o check-in.";
+
     return (
         <div className="p-2 sm:p-4 md:p-6 lg:p-8 space-y-8 md:space-y-12">
             <Toaster position="top-right" />
@@ -499,14 +505,14 @@ export default function DebriefingConversaoPage() {
                     {/* Seção 1: Resumo */}
                     <section>
                         <SectionHeader icon={Database} title="Resumo Executivo" />
-                         {/* *** 1ª CORREÇÃO: "grid-cols-1" (pilha) para mobile, "sm:grid-cols-3" para telas > sm *** */}
+                         {/* *** CORREÇÃO: "grid-cols-1" (pilha) para mobile, "sm:grid-cols-3" e "lg:grid-cols-6" *** */}
                          {!resumo ? <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p> : ( <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4"> <KpiCard title="Total Leads" value={(resumo.total_leads || 0).toLocaleString('pt-BR')} /> <KpiCard title="Total Check-ins" value={(resumo.total_checkins || 0).toLocaleString('pt-BR')} /> <KpiCard title="Total Compras" value={(resumo.total_vendas || 0).toLocaleString('pt-BR')} /> <KpiCard title="Tx. L p/ C" value={`${parseFloat(resumo.tx_lead_checkin || 0).toFixed(2)}%`} /> <KpiCard title="Tx. C p/ Cp" value={`${parseFloat(resumo.tx_checkin_venda || 0).toFixed(2)}%`} /> <KpiCard title="Tx. L p/ Cp" value={`${parseFloat(resumo.tx_lead_venda || 0).toFixed(2)}%`} /> </div> )}
                     </section>
 
                     {/* Seção 2: Movimentação Diária */}
                     <section>
                         <SectionHeader icon={BarChart2} title="Movimentação Diária" />
-                        {/* *** 2ª CORREÇÃO: "overflow-x-auto" no container e "min-w-[600px]" no filho *** */}
+                        {/* *** CORREÇÃO: "overflow-x-auto" no container e "min-w-[600px]" no filho *** */}
                         <div className="w-full overflow-x-auto bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow"> 
                             <div className="h-72 sm:h-80 md:h-96 min-w-[600px]">
                                 {movimentacao.length > 0 ? <Bar ref={movimentacaoChartRef} options={barChartOptions} data={barChartData} /> : <p className="text-center pt-16 text-gray-500 dark:text-gray-400">Sem dados...</p>} 
@@ -519,14 +525,14 @@ export default function DebriefingConversaoPage() {
                         <SectionHeader icon={PieChart} title="Análise de Fontes de Tráfego" />
                         {fontes.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-3 gap-6"> 
                         
-                        {/* *** 3ª CORREÇÃO: Removido 'overflow-hidden' *** */}
+                        {/* *** CORREÇÃO: Removido 'overflow-hidden' *** */}
                         <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full"> 
                             <div className="h-64 sm:h-72 md:h-80"> 
                                 <Pie ref={fontesChartRef} options={pieChartOptions} data={pieChartData} /> 
                             </div> 
                         </div> 
                         
-                        {/* *** 4ª CORREÇÃO: Adicionado 'w-full' para consertar o overflow *** */}
+                        {/* *** CORREÇÃO: Adicionado 'overflow-x-auto' ao container da tabela *** */}
                         <div className="lg:col-span-2 overflow-x-auto w-full bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Fonte</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Compras</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Conversão Lead p/ Compra">Tx. L/Cp</th></tr></thead><tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">{
                             fontes.map(f => (<tr key={f.fonte} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{f.fonte}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.leads_gerados || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.total_checkins || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(f.vendas || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-semibold text-gray-800 dark:text-white">{parseFloat(f.tx_lead_venda || 0).toFixed(2)}%</td></tr>))
                         }</tbody></table></div> </div> ) : <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
@@ -537,7 +543,7 @@ export default function DebriefingConversaoPage() {
                         <SectionHeader icon={ListChecks} title="Análise de Campanhas e Criativos (Tabela Mestra)" />
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 -mt-2">Esta tabela detalha a performance de cada campanha e criativo.</p>
                         
-                        {/* *** 5ª CORREÇÃO: Adicionado 'w-full' para consertar o overflow *** */}
+                        {/* *** CORREÇÃO: Adicionado 'overflow-x-auto' ao container da tabela *** */}
                         <div className="overflow-x-auto w-full bg-white dark:bg-gray-800 shadow rounded-lg p-2 md:p-4"><table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead className="bg-gray-50 dark:bg-gray-700"><tr><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Campanha</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Criativo</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Leads</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Check-ins</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Contribuição % do Total de Check-ins do Lançamento">Ck / Total Ck</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Compras</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Check-in p/ Compra">Tx. C/Cp</th><th className="px-1 xs:px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase" title="Taxa Lead p/ Compra">Tx. L/Cp</th></tr></thead><tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">{
                         tabelaMestra.length > 0 ? tabelaMestra.map((row, index) => (<tr key={`${row.utm_campaign}-${row.utm_content}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-medium text-gray-900 dark:text-white">{row.utm_campaign || '(nd)'}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{row.utm_content || '(nd)'}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.leads || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.checkins || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{parseFloat(row.tx_lead_checkin_contribution || 0).toFixed(2)}%</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{(row.vendas || 0).toLocaleString('pt-BR')}</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm text-gray-700 dark:text-gray-100">{parseFloat(row.tx_checkin_venda || 0).toFixed(2)}%</td><td className="px-1 xs:px-2 sm:px-4 py-3 whitespace-nowrap text-xs xs:text-sm font-bold text-gray-800 dark:text-white">{parseFloat(row.tx_lead_venda || 0).toFixed(2)}%</td></tr>)) : ( <tr><td colSpan="8" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">Nenhum dado...</td></tr> )
                         }</tbody></table></div>
@@ -548,11 +554,11 @@ export default function DebriefingConversaoPage() {
                         <SectionHeader icon={Star} title="Análise por Faixa de Score (Check-ins)" />
                         {scoreAnalysis.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center"> 
                         
-                        {/* *** 6ª CORREÇÃO: Removido 'overflow-hidden' *** */}
                         <div className="bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full"> 
                             <div className="h-64 sm:h-72 md:h-80"><Pie ref={scoreChartRef} options={{...analysisPieOptions, plugins: {...analysisPieOptions.plugins, legend: { position: 'bottom', labels: {...commonChartOptions.plugins.legend.labels, color: chartColors.legend }}} }} data={scorePieChartData} /></div> 
                         </div> 
-                        <div className="bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow w-full">{renderAnalysisTable(scoreAnalysis, 'score_range_name', 'score_range_order')}</div> </div> ) : <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
+                        {/* *** CORREÇÃO: Adicionado 'overflow-x-auto' ao container da tabela *** */}
+                        <div className="bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow w-full overflow-x-auto">{renderAnalysisTable(scoreAnalysis, 'score_range_name', 'score_range_order')}</div> </div> ) : <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
                     </section>
 
                     {/* Seção Análise por Nível MQL */}
@@ -560,16 +566,18 @@ export default function DebriefingConversaoPage() {
                         <SectionHeader icon={UserCheck} title="Análise por Nível MQL (Check-ins)" />
                         {mqlAnalysis.length > 0 ? ( <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center"> 
                         
-                        {/* *** 7ª CORREÇÃO: Removido 'overflow-hidden' *** */}
                         <div className="bg-white dark:bg-gray-800 p-1 sm:p-2 md:p-4 rounded-lg shadow w-full"> 
+                            {/* *** CORREÇÃO DO ERRO DE DIGITAÇÃO: mqlChartRef *** */}
                             <div className="h-64 sm:h-72 md:h-80"><Pie ref={mqlChartRef} options={{...analysisPieOptions, plugins: {...analysisPieOptions.plugins, legend: { position: 'bottom', labels: {...commonChartOptions.plugins.legend.labels, color: chartColors.legend }}} }} data={mqlPieChartData} /></div> 
                         </div> 
-                        <div className="bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow w-full">{renderAnalysisTable(mqlAnalysis, 'mql_level', 'mql_order')}</div> </div> ): <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
+                        {/* *** CORREÇÃO: Adicionado 'overflow-x-auto' ao container da tabela *** */}
+                        <div className="bg-white dark:bg-gray-800 p-2 md:p-4 rounded-lg shadow w-full overflow-x-auto">{renderAnalysisTable(mqlAnalysis, 'mql_level', 'mql_order')}</div> </div> ): <p className="text-center text-gray-500 dark:text-gray-400 py-8">Sem dados...</p>}
                     </section>
 
-                    {/* *** SEÇÃO: PERFIL DO COMPRADOR IDEAL *** */}
+                    {/* *** SEÇÃO: PERFIL DO COMPRADOR/LEAD (AGORA DINÂMICA) *** */}
                     <section>
-                         <SectionHeader icon={Users} title="Perfil do Comprador Ideal (Automático)" />
+                         {/* *** CORREÇÃO: Título dinâmico *** */}
+                         <SectionHeader icon={Users} title={profileTitle} />
                          <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow">
                             {buyerPersona?.perfil_narrativo ? (
                                 <p className="text-base md:text-lg text-gray-800 dark:text-gray-100 leading-relaxed italic">
@@ -577,18 +585,27 @@ export default function DebriefingConversaoPage() {
                                 </p>
                             ) : (
                                 <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                                    Sem dados suficientes do perfil dos compradores para gerar um resumo.
+                                    Sem dados suficientes do perfil para gerar um resumo.
                                 </p>
                             )}
                          </div>
+                         {/* *** CORREÇÃO: Legenda dinâmica *** */}
                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 italic">
-                            Perfil baseado nas respostas mais comuns do público que realizou a compra.
+                            {profileCaption}
                          </p>
                     </section>
 
                     {/* Seção Insights Sugeridos (Automático) */}
                     <section>
                          <SectionHeader icon={Lightbulb} title="Insights Sugeridos (Automático)" />
+                         
+                         {/* *** CORREÇÃO: Adicionado aviso dinâmico *** */}
+                         {!hasSales && (
+                            <p className="text-sm text-yellow-500 dark:text-yellow-400 mb-4 -mt-2 italic">
+                                Nota: Esta é uma análise de engajamento (Lead → Check-in), pois ainda não há vendas. As sugestões são provisórias, focadas em otimizar a campanha em andamento.
+                            </p>
+                         )}
+                         
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                              <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
                                  <h3 className="text-lg font-semibold text-green-800 dark:text-green-300 mb-3">✅ Manter / Escalar:</h3>
@@ -642,31 +659,37 @@ export default function DebriefingConversaoPage() {
                             )}
                         </div>
                     </section>
-
-                    <section>
-                        <SectionHeader icon={UserCircle} title="Análise do Perfil de Compradores" />
-                        <div className="space-y-4 md:space-y-6">
-                            {Object.keys(perfilCompradoresData).length > 0 ? (
-                                Object.keys(perfilCompradoresData).map((question) => (
-                                    <ProfileQuestion
-                                        key={question}
-                                        question={question}
-                                        questionData={perfilCompradoresData[question]}
-                                        chartOptions={analysisPieOptions}
-                                        chartColors={chartColors}
-                                        setChartRef={setCompradoresRef}
-                                    />
-                                ))
-                            ) : (
-                                <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados de perfil de compradores para análise.</p>
-                            )}
-                        </div>
-                    </section>
+                    
+                    {/* *** CORREÇÃO: Seção inteira de Compradores agora é condicional *** */}
+                    {hasSales && (
+                        <section>
+                            <SectionHeader icon={UserCircle} title="Análise do Perfil de Compradores" />
+                            <div className="space-y-4 md:space-y-6">
+                                {Object.keys(perfilCompradoresData).length > 0 ? (
+                                    Object.keys(perfilCompradoresData).map((question) => (
+                                        <ProfileQuestion
+                                            key={question}
+                                            question={question}
+                                            questionData={perfilCompradoresData[question]}
+                                            chartOptions={analysisPieOptions}
+                                            chartColors={chartColors}
+                                            setChartRef={setCompradoresRef}
+                                        />
+                                    ))
+                                ) : (
+                                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">Sem dados de perfil de compradores para análise.</p>
+                                )}
+                            </div>
+                        </section>
+                    )}
 
                     {/* *** SEÇÃO TABELA RESUMO TOP 2 *** */}
                     <section>
                          <SectionHeader icon={ListChecks} title="Resumo: Top 2 Respostas por Pergunta" />
-                         {renderTopTwoTable(topTwoAnswersData, profileQuestionLists)}
+                         {/* *** CORREÇÃO: Adicionado 'overflow-x-auto' ao container da tabela *** */}
+                         <div className="overflow-x-auto w-full">
+                            {renderTopTwoTable(topTwoAnswersData, profileQuestionLists)}
+                         </div>
                     </section>
 
                 </div>
