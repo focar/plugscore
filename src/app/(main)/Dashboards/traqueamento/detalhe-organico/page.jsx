@@ -1,9 +1,12 @@
 // /src/app/(main)/Dashboards/traqueamento/detalhe-organico/page.jsx
 'use client';
 
+// =================================================================
+// /// --- CÓDIGO v32.0 (Corrige BUG de navegação "Voltar" 100%) --- ///
+// =================================================================
+
 import { useState, useEffect, useCallback, useMemo, Suspense, useContext } from "react";
 import { useRouter } from 'next/navigation';
-// import Link from 'next/link'; // REMOVIDO: Usaremos handleInternalNavigate
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AppContext } from '@/context/AppContext';
 import { FaSpinner, FaChevronLeft, FaLeaf, FaChartBar, FaBullseye, FaCalendarDay } from "react-icons/fa";
@@ -17,9 +20,8 @@ const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: fa
 const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
 const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
 const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false });
-const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false }); // ADICIONADO: Necessário para as cores
+const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false }); 
 
-// --- CORREÇÃO 2 (CORES) ---
 // Definir uma paleta de cores para o gráfico
 const COLORS = [
   '#3b82f6', // blue-500
@@ -41,7 +43,6 @@ function DetalheOrganicoContent() {
     const router = useRouter();
     const { userProfile, setHeaderContent, selectedClientId } = useContext(AppContext);
     
-    // --- 💡 ARQUITETURA STATE-DRIVEN: LEITURA APENAS DO SESSION STORAGE ---
     const [currentLaunchId, setCurrentLaunchId] = useState(null);
     const [currentLaunchName, setCurrentLaunchName] = useState(null);
     const [isClient, setIsClient] = useState(false); // Para controle de "pisca"
@@ -53,17 +54,24 @@ function DetalheOrganicoContent() {
     const clientIdToSend = userProfile?.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile?.cliente_id;
 
     // --- LÓGICA DE NAVEGAÇÃO / PERSISTÊNCIA ---
-    const handleVoltar = useCallback(() => {
-        // Esta página é um "detalhe", o "voltar" leva para a página principal de traqueamento
-        // A página principal já sabe ler o 'persistLaunchId'
-        if (currentLaunchId) {
-            sessionStorage.setItem('persistLaunchId', currentLaunchId);
-        }
-        router.push('/Dashboards/traqueamento');
-    }, [currentLaunchId, router]);
 
-    // --- CORREÇÃO 4 (NAVEGAÇÃO) ---
-    // Adicionada função para navegar salvando o contexto
+    // *** CORREÇÃO: Removido o useEffect[cleanup] ***
+    
+    // *** CORREÇÃO: Atualizado handleVoltar para setar a "flag" ***
+    const handleVoltar = useCallback(() => {
+        // *** CORREÇÃO: Seta a "flag" de persistência ***
+        // Lê o ID direto do sessionStorage para garantir que está pegando o valor correto
+        const currentId = sessionStorage.getItem('currentDetailLaunchId');
+        if (currentId) {
+            sessionStorage.setItem('persistTraqueamentoLaunchId', currentId);
+        }
+        
+        // A página principal lerá 'currentDetailLaunchId',
+        // então NÃO o removemos daqui.
+        router.push('/Dashboards/traqueamento');
+    }, [router]); // Removido currentLaunchId das dependências
+
+    
     const handleInternalNavigate = (path) => {
         if (currentLaunchId) {
             sessionStorage.setItem('currentDetailLaunchId', currentLaunchId);
@@ -86,10 +94,11 @@ function DetalheOrganicoContent() {
         }
     }, []);
 
-    // --- CORREÇÃO 1 (HEADER) ---
+    // Efeito de Header e Redirecionamento
     useEffect(() => {
         // Redireciona se não houver ID (lógica de "pisca")
         if (isClient && !isLoadingData && !currentLaunchId && userProfile) {
+            toast.error("Contexto do lançamento perdido. Retornando...");
             router.push('/Dashboards/traqueamento');
         }
 
@@ -138,7 +147,6 @@ function DetalheOrganicoContent() {
     // Calcula o total de leads (Memoizado para performance)
     const totalOrganicLeads = useMemo(() => data.reduce((sum, item) => sum + item.total_leads, 0), [data]);
 
-    // --- CORREÇÃO 2 (CORES) ---
     // Prepara os dados para o gráfico (Memoizado para performance)
     const chartData = useMemo(() => 
         data.map((item, index) => ({ 
@@ -148,9 +156,8 @@ function DetalheOrganicoContent() {
         })), 
     [data]);
 
-    // --- CORREÇÃO 1 (PISCANDO) ---
     // Não renderiza nada até o cliente ser verificado e o ID carregado
-    if (!isClient || isLoadingData || !currentLaunchId) {
+    if (!isClient || !currentLaunchId) {
         return (
             <div className="flex justify-center items-center h-96">
                 <FaSpinner className="animate-spin text-blue-500 text-5xl" />
@@ -163,48 +170,46 @@ function DetalheOrganicoContent() {
         <div className="p-4 md:p-6 lg:p-8 text-gray-900 dark:text-gray-100">
             <Toaster position="top-center" />
 
-            {/* O loading principal foi movido para cima */}
-            <>
-                {/* --- ESTRUTURA DO CABEÇALHO COM ABAS --- */}
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
-                    
-                    {/* ITEM 1 (ESQUERDA): Card Total Leads */}
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex items-center gap-4 w-full md:w-auto flex-shrink-0">
-                        <FaLeaf className="text-green-500" size={32} />
-                        <div>
-                            <p className="text-lg text-gray-600 dark:text-gray-300">Total de Leads Orgânicos em <span className="font-bold text-gray-800 dark:text-gray-100">{currentLaunchName}</span></p>
-                            <p className="text-4xl font-bold text-gray-800 dark:text-gray-100">{totalOrganicLeads.toLocaleString('pt-BR')}</p>
-                        </div>
+            {/* --- ESTRUTURA DO CABEÇALHO COM ABAS --- */}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
+                
+                {/* ITEM 1 (ESQUERDA): Card Total Leads */}
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex items-center gap-4 w-full md:w-auto flex-shrink-0">
+                    <FaLeaf className="text-green-500" size={32} />
+                    <div>
+                        <p className="text-lg text-gray-600 dark:text-gray-300">Total de Leads Orgânicos em <span className="font-bold text-gray-800 dark:text-gray-100">{currentLaunchName}</span></p>
+                        <p className="text-4xl font-bold text-gray-800 dark:text-gray-100">{totalOrganicLeads.toLocaleString('pt-BR')}</p>
                     </div>
-
-                    {/* ITEM 2 (DIREITA): Botões de Navegação (Voltar + Abas) */}
-                    <nav className="flex flex-wrap items-center gap-2 sm:gap-4 w-full md:w-auto justify-end md:justify-end">
-                        <button onClick={handleVoltar} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold px-4 py-3 rounded-lg shadow-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                            <FaChevronLeft size={14} /> Voltar
-                        </button>
-                        
-                        {/* --- CORREÇÃO 4 (NAVEGAÇÃO) --- 
-                          * Trocado <Link> por <button> com handleInternalNavigate
-                        */}
-                        <button onClick={() => handleInternalNavigate(`${basePath}/score`)} className={`flex-1 sm:flex-none flex justify-center items-center gap-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold px-4 py-3 rounded-lg shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}>
-                            <FaBullseye /> SCORE
-                        </button>
-                        <button onClick={() => handleInternalNavigate(`${basePath}/mql`)} className={`flex-1 sm:flex-none flex justify-center items-center gap-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold px-4 py-3 rounded-lg shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}>
-                            <FaChartBar /> MQL
-                        </button>
-                        <button onClick={() => handleInternalNavigate(`${basePath}/mov-diario`)} className={`flex-1 sm:flex-none flex justify-center items-center gap-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold px-4 py-3 rounded-lg shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}>
-                            <FaCalendarDay /> Mov. Diário
-                        </button>
-                    </nav>
                 </div>
-                {/* --- FIM DO CABEÇALHO COM ABAS --- */}
 
-                {/* --- Seção Principal (GRID de 5 Colunas) --- */}
+                {/* ITEM 2 (DIREITA): Botões de Navegação (Voltar + Abas) */}
+                <nav className="flex flex-wrap items-center gap-2 sm:gap-4 w-full md:w-auto justify-end md:justify-end">
+                    <button onClick={handleVoltar} className="flex-1 sm:flex-none flex justify-center items-center gap-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold px-4 py-3 rounded-lg shadow-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                        <FaChevronLeft size={14} /> Voltar
+                    </button>
+                    
+                    <button onClick={() => handleInternalNavigate(`${basePath}/score`)} className={`flex-1 sm:flex-none flex justify-center items-center gap-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold px-4 py-3 rounded-lg shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}>
+                        <FaBullseye /> SCORE
+                    </button>
+                    <button onClick={() => handleInternalNavigate(`${basePath}/mql`)} className={`flex-1 sm:flex-none flex justify-center items-center gap-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold px-4 py-3 rounded-lg shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}>
+                        <FaChartBar /> MQL
+                    </button>
+                    <button onClick={() => handleInternalNavigate(`${basePath}/mov-diario`)} className={`flex-1 sm:flex-none flex justify-center items-center gap-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold px-4 py-3 rounded-lg shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}>
+                        <FaCalendarDay /> Mov. Diário
+                    </button>
+                </nav>
+            </div>
+            {/* --- FIM DO CABEÇALHO COM ABAS --- */}
+            
+            {isLoadingData ? (
+                <div className="flex justify-center items-center h-96">
+                    <FaSpinner className="animate-spin text-blue-500 text-5xl" />
+                </div>
+            ) : (
                 <main className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
                     
                     {/* Coluna da Esquerda (Tabela - Ocupa 2 de 5 colunas em lg) */}
                     <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg overflow-y-auto h-[35rem]">
-                        {/* ... Tabela de dados (mantida) ... */}
                         <table className="w-full text-left text-gray-800 dark:text-gray-200">
                             <thead className="sticky top-0 bg-white dark:bg-gray-800">
                                 <tr className="border-b border-gray-200 dark:border-gray-700">
@@ -224,11 +229,8 @@ function DetalheOrganicoContent() {
                     </div>
 
                     {/* Coluna da Direita (Gráfico - Ocupa 3 de 5 colunas em lg) */}
-                    {/* --- CORREÇÃO 3 (ALERTAS) --- 
-                      * Adicionado "flex flex-col" ao contêiner
-                    */}
                     <div className="lg:col-span-3 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg h-[35rem] flex flex-col">
-                       <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgb(107 114 128 / 0.5)" />
                                 <XAxis type="number" stroke="rgb(107 114 128 / 1)" />
@@ -242,16 +244,12 @@ function DetalheOrganicoContent() {
                                         color: 'rgb(209 213 219 / 1)' // dark:text-gray-300
                                     }} 
                                 />
-                                {/* --- CORREÇÃO 2 (CORES) --- 
-                                  * Trocado fill="#22c55e" por fillKey="fill"
-                                */}
                                 <Bar dataKey="Leads" fillKey="fill" radius={[0, 4, 4, 0]} />
                             </BarChart>
-                       </ResponsiveContainer>
+                    </ResponsiveContainer>
                     </div>
                 </main>
-            </>
-            {/* O 'isLoadingData' é tratado no início do componente */}
+            )}
         </div>
     );
 }

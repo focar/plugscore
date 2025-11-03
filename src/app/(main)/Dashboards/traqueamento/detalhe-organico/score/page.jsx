@@ -312,6 +312,9 @@ function ScorePageContent() {
 
         {/* --- CORREÇÃO 4 (NAVEGAÇÃO) --- */}
         <div className="flex flex-wrap items-center gap-3">
+          <button onClick={handleVoltar} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-100">
+            <FaChevronLeft /> Voltar
+          </button>
           <button onClick={() => handleInternalNavigate(`${basePath}/score`)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white shadow-md">
             <FaBullseye /> SCORE
           </button>
@@ -320,9 +323,6 @@ function ScorePageContent() {
           </button>
           <button onClick={() => handleInternalNavigate(`${basePath}/mov-diario`)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300">
             <FaCalendarDay /> Mov. Diário
-          </button>
-          <button onClick={handleVoltar} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-100">
-            <FaChevronLeft /> Voltar
           </button>
         </div>
       </div>

@@ -1,6 +1,10 @@
 // /src/app/(main)/Dashboards/traqueamento/detalhe-pago/page.jsx
 'use client';
 
+// =================================================================
+// /// --- CÓDIGO v33.0 (Corrige BUG de navegação "Voltar" 100%) --- ///
+// =================================================================
+
 import { useState, useEffect, useCallback, useMemo, Suspense, useContext } from "react";
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -15,8 +19,8 @@ const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: fa
 const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false });
 const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
 const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
-// O Cell não é mais necessário para esta nova abordagem
-// const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
+const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false });
+const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
 
 // Definir uma paleta de cores para o gráfico
 const COLORS = [
@@ -37,13 +41,14 @@ const COLORS = [
 function DetalhePagoContent() {
     const supabase = createClientComponentClient();
     const router = useRouter();
-    const { userProfile, setHeaderContent } = useContext(AppContext);
+    const { userProfile, setHeaderContent, selectedClientId } = useContext(AppContext);
     
     const [launchId, setLaunchId] = useState(null);
     const [launchName, setLaunchName] = useState(null);
 
     const [data, setData] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const clientIdToSend = userProfile?.role === 'admin' ? (selectedClientId === 'all' ? null : selectedClientId) : userProfile?.cliente_id;
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -55,6 +60,7 @@ function DetalhePagoContent() {
                 setLaunchName(storedName);
             } else {
                 setIsLoading(false);
+                toast.error("Contexto do lançamento perdido. Retornando...");
                 router.push('/Dashboards/traqueamento');
             }
         }
@@ -76,31 +82,13 @@ function DetalhePagoContent() {
     }, [setHeaderContent, launchName]);
 
     // --- 💡 CORREÇÃO (MANTER LANÇAMENTO AO VOLTAR) ---
-    // Este efeito garante que o ID do lançamento seja salvo no 'persistLaunchId'
-    // sempre que o usuário sair desta página (seja pelo botão "Voltar" do app ou pelo "Voltar" do navegador).
-    useEffect(() => {
-        // Esta função de limpeza (cleanup) roda QUANDO O COMPONENTE DESMONTA (usuário sai da página)
-        return () => {
-            // Pega o ID que estava sendo usado nesta página.
-            const currentId = sessionStorage.getItem('currentDetailLaunchId');
-            
-            // Se o ID existir, salva ele em 'persistLaunchId'.
-            // A página /traqueamento (a principal) está programada para ler este 'persistLaunchId'
-            // e se auto-selecionar.
-            if (currentId) {
-                sessionStorage.setItem('persistLaunchId', currentId);
-            }
-        };
-    }, []); // Array vazio garante que isso rode apenas na montagem e desmontagem
-
+    // A lógica de "persistir" foi MOVIDA para a página principal.
+    // Esta página agora só precisa navegar.
+    
     const handleVoltar = () => {
-        // A lógica do 'persistLaunchId' agora está no useEffect de desmontagem,
-        // mas podemos manter esta por segurança para o clique explícito.
-        if (launchId) sessionStorage.setItem('persistLaunchId', launchId);
-        
-        // Limpa o ID *atual* para evitar confusão se o usuário navegar para outro detalhe
-        sessionStorage.removeItem('currentDetailLaunchId');
-        sessionStorage.removeItem('currentDetailLaunchName');
+        // A página principal 'traqueamento' agora é inteligente
+        // e vai manter o 'currentDetailLaunchId' se o cliente for o mesmo.
+        // Só precisamos navegar.
         router.push('/Dashboards/traqueamento');
     };
 
@@ -110,10 +98,7 @@ function DetalhePagoContent() {
             return;
         }
         
-        // Garante que o contexto esteja no sessionStorage antes de navegar
-        sessionStorage.setItem('currentDetailLaunchId', launchId);
-        sessionStorage.setItem('currentDetailLaunchName', launchName);
-
+        // A "memória" já está salva, apenas navegamos.
         router.push(path);
     };
 
@@ -121,7 +106,6 @@ function DetalhePagoContent() {
         if (!userProfile || !id) return;
         setIsLoading(true);
         try {
-            const clientIdToSend = userProfile.role === 'admin' ? null : userProfile.cliente_id;
             
             const { data: result, error } = await supabase.rpc('get_paid_traffic_by_content', { 
                 p_launch_id: id,
@@ -135,27 +119,24 @@ function DetalhePagoContent() {
         } finally {
             setIsLoading(false);
         }
-    }, [supabase, userProfile]);
+    }, [supabase, userProfile, clientIdToSend]); 
 
     useEffect(() => {
-        if (launchId) {
+        if (launchId && userProfile) { 
             fetchData(launchId);
         }
-    }, [launchId, fetchData]);
+    }, [launchId, fetchData, userProfile]);
 
     const totalPaidLeads = useMemo(() => data.reduce((sum, item) => sum + item.total_leads, 0), [data]);
     const sortedData = useMemo(() => [...data].sort((a, b) => b.total_leads - a.total_leads), [data]);
     
-    // --- CORREÇÃO DAS BARRAS PRETAS (NOVA TÉCNICA) ---
     const chartData = useMemo(() => 
         sortedData.map((item, index) => ({ 
             name: item.utm_content || '(not set)', 
             Leads: item.total_leads,
-            // 1. Injetamos a cor diretamente no objeto de dados
             fill: COLORS[index % COLORS.length] 
         }))
     , [sortedData]);
-    // -------------------------------------------------
 
     const hasData = totalPaidLeads > 0;
     const basePath = `/Dashboards/traqueamento/detalhe-pago`;
@@ -168,9 +149,6 @@ function DetalhePagoContent() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
                 <div className="flex flex-col">
                     <p className="text-sm text-gray-500 dark:text-slate-400 uppercase tracking-wider">ANÁLISE DE TRÁFEGO PAGO</p>
-                    {/* O Título no Header agora é "Traqueamento de Trafego" */}
-                    {/* O Nome do Lançamento está no Header à direita */}
-                    {/* Este h1 é o título local da página */}
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{launchName || 'Carregando...'}</h1>
                 </div>
 
@@ -230,10 +208,8 @@ function DetalhePagoContent() {
                     </div>
                     
                     {/* GRÁFICO DE BARRAS */}
-                    {/* 1. CORREÇÃO ALERTA CONSOLE: "flex flex-col" */}
                     <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg h-[35rem] flex flex-col">
                         <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Leads por Conteúdo</h2>
-                        {/* 1. CORREÇÃO ALERTA CONSOLE: height="100%" */}
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                 <XAxis type="number" stroke="rgb(107 114 128 / 1)" /> 
@@ -247,9 +223,6 @@ function DetalhePagoContent() {
                                     }} 
                                     itemStyle={{ color: 'rgb(209, 213, 219)' }}
                                 />
-                                {/* * 2. CORREÇÃO BARRAS PRETAS: 
-                                  * Usamos 'fillKey' para ler a propriedade 'fill' que injetamos nos dados.
-                                */}
                                 <Bar dataKey="Leads" radius={[0, 4, 4, 0]} fillKey="fill" />
                             </BarChart>
                        </ResponsiveContainer>
@@ -267,4 +240,3 @@ export default function DetalhePagoPage() {
         </Suspense>
     );
 }
-

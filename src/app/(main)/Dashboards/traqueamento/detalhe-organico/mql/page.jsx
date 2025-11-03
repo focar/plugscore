@@ -303,7 +303,11 @@ function MqlPageContent() {
                     {/* --- CORREÇÃO 5 (NAVEGAÇÃO) --- */}
                     {/* Trocado <Link> por <button> e onClick */}
                     <nav className="flex flex-wrap items-center gap-2 sm:gap-4 w-full md:w-auto">
-                        
+                                         {/* Botão Voltar (Corrigido) */}
+                    <button onClick={handleVoltar} className="flex-shrink-0 flex items-center justify-center gap-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold px-4 py-2 rounded-lg shadow-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                        <FaChevronLeft size={14} /> Voltar
+                    </button>
+                       
                         {/* SCORE (Inativo) */}
                         <button onClick={() => handleInternalNavigate(`${basePath}/score`)} className={`flex-1 sm:flex-none flex justify-center items-center gap-3 font-semibold px-4 py-3 rounded-lg shadow-md transition-colors bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700`}>
                           <FaBullseye size={16} /> SCORE
@@ -319,11 +323,6 @@ function MqlPageContent() {
                           <FaCalendarDay size={16} /> Mov. Diário
                         </button>
                     </nav>
-                    
-                    {/* Botão Voltar (Corrigido) */}
-                    <button onClick={handleVoltar} className="flex-shrink-0 flex items-center justify-center gap-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold px-4 py-2 rounded-lg shadow-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                        <FaChevronLeft size={14} /> Voltar
-                    </button>
                 </div>
             </div>
             {/* --- FIM DO CABEÇALHO --- */}

@@ -1,6 +1,10 @@
 // /src/app/(main)/Dashboards/traqueamento/page.jsx
 'use client';
 
+// =================================================================
+// /// --- CÓDIGO v33.1 (Corrige 'idToSelect is not defined') --- ///
+// =================================================================
+
 import { useState, useEffect, useCallback, useMemo, useContext, Fragment } from "react";
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -103,32 +107,46 @@ export default function TraqueamentoPage() {
 
     // --- Efeito 1: Busca e Popula os Lançamentos (Dropdown principal) ---
     useEffect(() => {
-        // CORREÇÃO CRÍTICA DO LOOP: Garante que só rode se os parâmetros base mudarem
         if (!userProfile || clientIdToSend === undefined) return;
 
         const isAllClients = userProfile.role === 'admin' && selectedClientId === 'all';
-        
-        // Limpa SessionStorage de persistência de detalhe ao trocar de cliente/modo
-        sessionStorage.removeItem('currentDetailLaunchId');
-        sessionStorage.removeItem('currentDetailLaunchName');
-        
+                
         if (isAllClients) {
-            setLaunches([]); setSelectedLaunchId(''); setIsLoadingLaunches(false);
-            setKpis(null); setIsLoading(false); return;
+            // Se for "Todos os Clientes", limpa tudo
+            sessionStorage.removeItem('currentDetailLaunchId');
+            sessionStorage.removeItem('currentDetailLaunchName');
+            sessionStorage.removeItem('lastTraqueamentoClientId'); // Limpa a "flag" de cliente
+            setLaunches([]); 
+            setSelectedLaunchId(''); 
+            setIsLoadingLaunches(false);
+            setKpis(null); 
+            setIsLoading(false); 
+            return;
         }
 
         const fetchLaunches = async () => {
-            // 1. Tenta restaurar o ID salvo do botão Voltar ('persistLaunchId')
-            // ESTA LÓGICA JÁ ESTAVA CORRETA
-            const persistedLaunchId = sessionStorage.getItem('persistLaunchId');
-            // Remove o item logo após a leitura para que não seja restaurado em carregamentos futuros
-            if (persistedLaunchId) {
-                sessionStorage.removeItem('persistLaunchId'); 
+            // *** CORREÇÃO: Declarar 'idToSelect' no escopo da função ***
+            let idToSelect = ''; 
+            
+            // Lógica da "FLAG" de Cliente
+            const lastClientId = sessionStorage.getItem('lastTraqueamentoClientId');
+            let persistedLaunchId = null;
+
+            if (lastClientId === clientIdToSend) {
+                // Se o cliente for o MESMO, tentamos restaurar o lançamento
+                persistedLaunchId = sessionStorage.getItem('currentDetailLaunchId');
+            } else {
+                // Se o cliente MUDOU, limpamos a memória e salvamos o novo cliente
+                sessionStorage.removeItem('currentDetailLaunchId');
+                sessionStorage.removeItem('currentDetailLaunchName');
+                sessionStorage.setItem('lastTraqueamentoClientId', clientIdToSend);
             }
 
             setIsLoadingLaunches(true);
             setKpis(null); 
-            setIsLoading(true); 
+            if (!persistedLaunchId) {
+                setIsLoading(true); 
+            }
             setError(null);
             
             const { data, error } = await supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend });
@@ -141,48 +159,47 @@ export default function TraqueamentoPage() {
                 const sorted = [...data].sort((a, b) => (a.codigo || a.nome).localeCompare(b.codigo || b.nome));
                 setLaunches(sorted);
                 
-                // *** CORREÇÃO UX: Restaura a seleção se o usuário voltou da página de detalhe. ***
-                // ESTA LÓGICA JÁ ESTAVA CORRETA
-                let idToSelect = ''; 
+                // Usa o ID persistido (se existir)
                 if (persistedLaunchId && sorted.some(l => l.id === persistedLaunchId)) {
                     idToSelect = persistedLaunchId;
                 }
                 
-                // AQUI, forçamos o estado
                 setSelectedLaunchId(idToSelect);
 
-                // 2. Salva o ID e Nome no SessionStorage APENAS se houver seleção (para detalhe)
+                // Salva o ID e Nome no SessionStorage para a página de detalhe
                 const selectedLaunch = sorted.find(l => l.id === idToSelect);
                 if (selectedLaunch) {
-                        sessionStorage.setItem('currentDetailLaunchId', idToSelect);
-                        sessionStorage.setItem('currentDetailLaunchName', selectedLaunch.codigo);
+                    sessionStorage.setItem('currentDetailLaunchId', idToSelect);
+                    sessionStorage.setItem('currentDetailLaunchName', selectedLaunch.codigo);
+                } else {
+                    // Se nenhum ID foi selecionado (nem persistido), limpa
+                    sessionStorage.removeItem('currentDetailLaunchId');
+                    sessionStorage.removeItem('currentDetailLaunchName');
                 }
             }
 
             setIsLoadingLaunches(false);
             
-            // 3. Se não houver ID selecionado, paramos o spinner de KPI
-            // Se houver, o Efeito 2 irá rodar e parar o spinner
-            if (!selectedLaunchId && !persistedLaunchId) { // Adicionada verificação de persistedLaunchId
+            // Esta checagem agora é segura
+            if (!idToSelect) { 
                 setIsLoading(false); 
             }
         };
         
         fetchLaunches();
-    }, [userProfile, selectedClientId, supabase, clientIdToSend]); // Depende apenas de parâmetros base
+    }, [userProfile, selectedClientId, supabase, clientIdToSend]);
 
 
     // --- Efeito 2: Busca os KPIs quando um Lançamento é Selecionado ---
     useEffect(() => {
-        // Roda APENAS quando selectedLaunchId muda (ou os params base)
         if (!selectedLaunchId || clientIdToSend === undefined || clientIdToSend === 'all') {
             setKpis(null); 
-            if (isLoading) setIsLoading(false); // Garante que o spinner pare se não houver ID
+            setIsLoading(false); 
             return;
         }
 
         const fetchKpis = async () => {
-            setIsLoading(true); // O spinner já deve estar rodando, mas garantimos
+            setIsLoading(true);
             setError(null);
             
             const { data, error } = await supabase.rpc('get_tracking_kpis', { 
@@ -203,16 +220,16 @@ export default function TraqueamentoPage() {
         };
         
         fetchKpis();
-    }, [selectedLaunchId, clientIdToSend, supabase]); // Depende do ID selecionado
+    }, [selectedLaunchId, clientIdToSend, supabase]); 
 
 
-    // --- 💡 Lógica de Captura e Persistência de Estado (Navegação Limpa) ---
+    // --- Lógica de Navegação (Navegar PARA o detalhe) ---
     const handleNavigate = (type) => {
         if (!selectedLaunchId) { 
             toast.error("Por favor, selecione um lançamento primeiro."); 
             return; 
         }
-
+        
         let baseDetailPage = '';
         if (type === 'paid') {
             baseDetailPage = '/Dashboards/traqueamento/detalhe-pago';
@@ -221,9 +238,6 @@ export default function TraqueamentoPage() {
         } else if (type === 'untracked') {
             baseDetailPage = '/Dashboards/traqueamento/detalhe-nao-traqueado';
         }
-
-        // Os valores já estão salvos no sessionStorage via handleLaunchChange.
-        // Apenas navegamos para a URL limpa.
         router.push(baseDetailPage);
     };
 
@@ -276,7 +290,7 @@ export default function TraqueamentoPage() {
                 </div>
             ) : !selectedLaunchId ? (
                 <div className="text-center text-gray-500 dark:text-gray-400 py-10">
-                    Selecione um lançamento para visualizar o Dashboard.
+                    {clientIdToSend === null ? "Selecione um cliente para começar." : "Selecione um lançamento para visualizar o Dashboard."}
                 </div>
             ) : !kpis ? (
                 <div className="text-center text-gray-500 dark:text-gray-400 py-10">
@@ -294,7 +308,8 @@ export default function TraqueamentoPage() {
                     {/* Seção Principal (Cards de Tráfego + Gráfico) */}
                     <section className="space-y-6">
                         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 pb-2">Análise por Origem de Tráfego</h2>
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+                        
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             
                             {/* Cards de Tráfego */}
                             <div className="space-y-4 lg:col-span-1">
@@ -328,14 +343,8 @@ export default function TraqueamentoPage() {
                             </div>
                             
                             {/* Gráfico de Pizza */}
-                            {/*
-                              * CORREÇÃO (ALERTA DO CONSOLE): 
-                              * Adicionado "flex flex-col" ao contêiner.
-                              * Isso força o 'div' a ter uma altura definida antes do gráfico tentar renderizar,
-                              * resolvendo o aviso de width/height -1.
-                            */}
-                            <div className="lg:col-span-2 h-80 flex flex-col">
-                                <ResponsiveContainer width="100%" height="100%">
+                            <div className="lg:col-span-2 h-80 w-full">
+                                <ResponsiveContainer width="100%" height="100%" minHeight={320}>
                                     <PieChart>
                                         <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%" labelLine={false} >
                                             {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
@@ -351,4 +360,3 @@ export default function TraqueamentoPage() {
         </div>
     );
 }
-
