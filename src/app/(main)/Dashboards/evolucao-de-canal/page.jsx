@@ -1,3 +1,5 @@
+// Arquivo: /app/(main)/dashboard/evolucao-canal/page.jsx
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useContext, Fragment } from 'react';
@@ -5,7 +7,8 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { AppContext } from '@/context/AppContext';
 import { subDays, startOfDay, endOfDay, format, parseISO, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+// Importando LabelList para exibir valores
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
 import { FaSpinner, FaFilter, FaUsers, FaUserCheck, FaChevronDown, FaGlobe, FaBullseye, FaPercent } from 'react-icons/fa';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -21,6 +24,32 @@ const KpiCard = ({ title, value, subTitle, icon: Icon }) => (
     </div>
 );
 const Spinner = () => <div className="text-center py-10"><FaSpinner className="animate-spin text-blue-600 text-3xl mx-auto" /></div>;
+
+// --- Função para formatar o label (exibe apenas valores > 0 na BarChart) ---
+const CustomLabel = (props) => {
+    const { x, y, value } = props;
+    if (value > 0) {
+        return (
+            <text x={x} y={y} dy={-6} fill="#A0AEC0" fontSize={10} textAnchor="middle">
+                {value.toLocaleString('pt-BR')}
+            </text>
+        );
+    }
+    return null;
+};
+
+// --- Função para formatar o label da linha (exibe apenas valores > 0 na LineChart) ---
+const CustomLineLabel = (props) => {
+    const { x, y, value } = props;
+    if (value > 0) {
+        return (
+            <text x={x} y={y} dy={-10} fill="#A0AEC0" fontSize={10} textAnchor="middle">
+                {value.toLocaleString('pt-BR')}
+            </text>
+        );
+    }
+    return null;
+};
 
 
 export default function EvolucaoCanalPage() {
@@ -79,33 +108,33 @@ export default function EvolucaoCanalPage() {
         setLoadingData(true); 
 
         supabase.rpc('get_lancamentos_permitidos', { p_client_id: clientIdToSend })
-          .then(({ data, error }) => {
-              if (error) {
-                  console.error(error);
-                  toast.error("Erro ao buscar lançamentos.");
-                  setLaunches([]); 
-                  return; 
-              }
-              if (data) {
-                  const allLaunches = data; 
-                  const sorted = allLaunches.sort((a, b) => {
-                      if (a.status === 'Em Andamento' && b.status !== 'Em Andamento') return -1;
-                      if (b.status === 'Em Andamento' && a.status !== 'Em Andamento') return 1;
-                      return (a.codigo || a.nome).localeCompare(b.codigo || b.nome);
-                  });
-                  setLaunches(sorted);
-                  setSelectedLaunchId(''); 
-              }
-          })
-          .catch(err => {
-              console.error(err);
-              toast.error(`Erro ao buscar lançamentos: ${err.message}`);
-              setLaunches([]);
-          })
-          .finally(() => {
-              setLoadingLaunches(false);
-              setLoadingData(false); 
-          });
+            .then(({ data, error }) => {
+                 if (error) {
+                     console.error(error);
+                     toast.error("Erro ao buscar lançamentos.");
+                     setLaunches([]); 
+                     return; 
+                 }
+                 if (data) {
+                     const allLaunches = data; 
+                     const sorted = allLaunches.sort((a, b) => {
+                         if (a.status === 'Em Andamento' && b.status !== 'Em Andamento') return -1;
+                         if (b.status === 'Em Andamento' && a.status !== 'Em Andamento') return 1;
+                         return (a.codigo || a.nome).localeCompare(b.codigo || b.nome);
+                     });
+                     setLaunches(sorted);
+                     setSelectedLaunchId(''); 
+                 }
+            })
+            .catch(err => {
+                 console.error(err);
+                 toast.error(`Erro ao buscar lançamentos: ${err.message}`);
+                 setLaunches([]);
+            })
+            .finally(() => {
+                 setLoadingLaunches(false);
+                 setLoadingData(false); 
+            });
     }, [userProfile, selectedClientId, supabase, clientIdToSend]); 
 
     // Efeito para atualizar o Header
@@ -225,7 +254,7 @@ export default function EvolucaoCanalPage() {
                 case '14 Dias': startDate = startOfDay(subDays(now, 13)); break;
                 case '30 Dias': startDate = startOfDay(subDays(now, 29)); break;
                 case '45 Dias': startDate = startOfDay(subDays(now, 44)); break;
-                case 'Todos': startDate = new Date(2000, 0, 1); break;
+                case 'Todos': startDate = new Date(2000, 0, 1); endDate = new Date(2100, 0, 1); break;
                 default: startDate = startOfDay(now);
             }
             
@@ -296,6 +325,8 @@ export default function EvolucaoCanalPage() {
     const filteredTableData = (data?.table_data ?? []).filter(row => {
         if (period === 'Todos') return true;
         const { startDate, endDate } = getDatesForPeriod(period);
+        // Garante que row.dia é uma string de data válida antes de tentar parseISO
+        if (!row.dia || typeof row.dia !== 'string') return false; 
         const rowDate = parseISO(row.dia);
         return isWithinInterval(rowDate, { start: startDate, end: endDate });
     });
@@ -319,7 +350,7 @@ export default function EvolucaoCanalPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <KpiCard title="Inscrições" value={(kpis?.total_filtrado_inscricoes ?? 0).toLocaleString('pt-BR')} subTitle="Resultado do filtro" icon={FaUsers}/>
                         <KpiCard title="Check-ins" value={(kpis?.total_filtrado_checkins ?? 0).toLocaleString('pt-BR')} subTitle="Resultado do filtro" icon={FaUserCheck}/>
-                         <KpiCard title="Taxa Check-in" value={`${taxaCheckinFiltrado.toFixed(1)}%`} subTitle="Check-ins / Inscrições (Filtro)" icon={FaPercent}/>
+                        <KpiCard title="Taxa Check-in" value={`${taxaCheckinFiltrado.toFixed(1)}%`} subTitle="Check-ins / Inscrições (Filtro)" icon={FaPercent}/>
                     </div>
                 </div>
             </section>
@@ -367,11 +398,9 @@ export default function EvolucaoCanalPage() {
             ) : (
                 <div className="space-y-6">
                     
-                    {/* --- GRÁFICOS --- */}
+                    {/* --- GRÁFICO 1: Visão Geral do Lançamento (por Dia) --- */}
                     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Visão Geral do Lançamento (por Dia)</h3>
-                        
-                        {/* 💡💡💡 CORREÇÃO 1 (ALERTA AMARELO) 💡💡💡 */}
                         <div className="w-full">
                             <ResponsiveContainer width="100%" height={400}>
                                 <BarChart data={data?.overview_chart_data || []}>
@@ -380,17 +409,22 @@ export default function EvolucaoCanalPage() {
                                     <YAxis allowDecimals={false} />
                                     <Tooltip />
                                     <Legend />
-                                    <Bar dataKey="Inscrições" fill="#4e79a7" />
-                                    <Bar dataKey="Check-ins" fill="#59a14f" />
+                                    {/* CORRIGIDO: Adição do CustomLabel para Inscrições */}
+                                    <Bar dataKey="Inscrições" fill="#4e79a7">
+                                        <LabelList dataKey="Inscrições" content={CustomLabel} />
+                                    </Bar>
+                                    {/* CORRIGIDO: Adição do CustomLabel para Check-ins */}
+                                    <Bar dataKey="Check-ins" fill="#59a14f">
+                                        <LabelList dataKey="Check-ins" content={CustomLabel} />
+                                    </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
                     
+                    {/* --- GRÁFICO 2: Evolução no Período por Hora --- */}
                     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Evolução no Período por Hora ({period})</h3>
-                        
-                        {/* 💡💡💡 CORREÇÃO 1 (ALERTA AMARELO) 💡💡💡 */}
                         <div className="w-full">
                             <ResponsiveContainer width="100%" height={400}>
                                 <LineChart data={data?.period_chart_data || []}>
@@ -399,18 +433,23 @@ export default function EvolucaoCanalPage() {
                                     <YAxis allowDecimals={false} />
                                     <Tooltip />
                                     <Legend />
-                                    <Line type="monotone" dataKey="Inscrições" stroke="#4e79a7" strokeWidth={2} />
-                                    <Line type="monotone" dataKey="Check-ins" stroke="#59a14f" strokeWidth={2} />
-                                 </LineChart>
+                                    {/* CORRIGIDO: Adição do CustomLineLabel para Inscrições */}
+                                    <Line type="monotone" dataKey="Inscrições" stroke="#4e79a7" strokeWidth={2} dot={{ strokeWidth: 2 }}>
+                                         <LabelList dataKey="Inscrições" content={CustomLineLabel} />
+                                    </Line>
+                                     {/* CORRIGIDO: Adição do CustomLineLabel para Check-ins */}
+                                    <Line type="monotone" dataKey="Check-ins" stroke="#59a14f" strokeWidth={2} dot={{ strokeWidth: 2 }}>
+                                        <LabelList dataKey="Check-ins" content={CustomLineLabel} />
+                                    </Line>
+                                </LineChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
                     
-                    {/* --- TABELA DE DETALHES (ACORDEÃO) --- */}
+                    {/* --- TABELA DE DETALHES (ACORDEÃO) (Mantida) --- */}
                     <div className="w-full bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Detalhes por Dia e Hora</h3>
                         
-                        {/* 💡💡💡 CORREÇÃO 2 (NOVA TABELA PRINCIPAL) - HEADER 💡💡💡 */}
                         <div className="hidden md:grid md:grid-cols-6 gap-4 px-4 py-2 mt-4 text-sm font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                             <span className="md:col-span-2">Data</span>
                             <span>Inscrições</span>
@@ -424,26 +463,20 @@ export default function EvolucaoCanalPage() {
                                 const dayKey = format(parseISO(row.dia), 'yyyy-MM-dd');
                                 const isExpanded = expandedRows.has(dayKey); 
                                 
-                                // --- 💡💡💡 CORREÇÃO 2 (CÁLCULOS) 💡💡💡 ---
-                                // "Atual" (Inscrições vs Checkins do Dia) -> Preench. Checkin
                                 const preenchCheckin = (row.total_inscricoes > 0) ? (row.total_checkins / row.total_inscricoes) * 100 : 0;
-                                // "Nova" (Checkins do Dia vs Total Checkins) -> Taxa de Check-in
+                                
                                 const taxaCheckin = (kpis?.total_geral_checkins ?? 0) > 0
                                     ? ((row.total_checkins / kpis.total_geral_checkins) * 100)
                                     : 0;
-                                // --- FIM DA CORREÇÃO ---
 
                                 return (
                                 <div key={dayKey} className="bg-slate-50 dark:bg-gray-700/50 rounded-lg shadow-sm">
                                     
-                                    {/* --- 💡 CORREÇÃO 2 (GRID DA LINHA) --- */}
                                     <div onClick={() => toggleRow(dayKey)} className="cursor-pointer p-4 grid grid-cols-3 md:grid-cols-6 gap-4 items-center">
                                         
-                                        {/* Col 1 & 2: Data + Stats Mobile */}
                                         <div className="md:col-span-2 col-span-2">
                                             <div className="font-medium text-gray-800 dark:text-gray-100">{format(parseISO(row.dia), 'dd/MM/yyyy', {locale: ptBR})}</div>
                                             
-                                            {/* Stats Mobile (agora mostra ambas as taxas) */}
                                             <div className="md:hidden text-sm mt-1">
                                                 <div>
                                                     <span className="text-gray-500 dark:text-gray-400">Insc: </span>
@@ -460,18 +493,14 @@ export default function EvolucaoCanalPage() {
                                             </div>
                                         </div>
 
-                                        {/* Col 3: Inscrições (Desktop) */}
                                         <div className="hidden md:block text-gray-700 dark:text-gray-200">{row.total_inscricoes.toLocaleString('pt-BR')}</div>
                                         
-                                        {/* Col 4: Check-ins (Desktop) */}
                                         <div className="hidden md:block text-gray-700 dark:text-gray-200">{row.total_checkins.toLocaleString('pt-BR')}</div>
                                         
-                                        {/* Col 5: Preench. Checkin (Desktop) */}
                                         <div className="hidden md:block font-semibold text-blue-600 dark:text-blue-400">
                                             {preenchCheckin.toFixed(1)}%
                                         </div>
 
-                                        {/* Col 6: Taxa de Check-in (Desktop) + Chevron */}
                                         <div className="flex items-center justify-end md:justify-start">
                                             <span className="font-semibold text-green-600 dark:text-green-400">{taxaCheckin.toFixed(1)}%</span>
                                             <FaChevronDown className={`ml-3 text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} size={12} />
@@ -483,7 +512,6 @@ export default function EvolucaoCanalPage() {
                                             <div className="overflow-x-auto pl-4 md:pl-10 pr-4 py-2">
                                                 <table className="min-w-full text-sm">
                                                     
-                                                    {/* --- 💡 CORREÇÃO 2 (TABELA ANINHADA) - HEADER --- */}
                                                     <thead className="bg-slate-200 dark:bg-gray-600">
                                                         <tr>
                                                             <th className="p-2 text-left">Hora</th>
@@ -495,10 +523,9 @@ export default function EvolucaoCanalPage() {
                                                     </thead>
                                                     <tbody>
                                                         {row.hourly_details?.map(item => {
-                                                            // --- 💡 CORREÇÃO 2 (TABELA ANINHADA) - CÁLCULOS ---
-                                                            // "Atual" (Inscrições vs Checkins da Hora) -> Preench. Checkin
+                                                            
                                                             const hourlyPreenchRate = (item.inscricoes > 0) ? ((item.checkins / item.inscricoes) * 100) : 0;
-                                                            // "Nova" (Checkins da Hora vs Total Checkins) -> Taxa de Check-in
+                                                            
                                                             const hourlyShareRate = (kpis?.total_geral_checkins ?? 0) > 0
                                                                 ? ((item.checkins / kpis.total_geral_checkins) * 100)
                                                                 : 0;
@@ -508,7 +535,6 @@ export default function EvolucaoCanalPage() {
                                                                     <td className="p-2">{`${item.hora.toString().padStart(2, '0')}:00`}</td>
                                                                     <td className="p-2">{item.inscricoes}</td>
                                                                     <td className="p-2">{item.checkins}</td>
-                                                                    {/* --- 💡 CORREÇÃO 2 (TABELA ANINHADA) - CÉLULAS --- */}
                                                                     <td className="p-2 font-semibold text-blue-600 dark:text-blue-400">
                                                                         {hourlyPreenchRate.toFixed(1)}%
                                                                     </td>
@@ -524,7 +550,7 @@ export default function EvolucaoCanalPage() {
                                         </div>
                                     )}
                                 </div>
-                                )
+                                );
                             })}
                             
                             {filteredTableData.length === 0 && (data?.table_data ?? []).length > 0 && (
