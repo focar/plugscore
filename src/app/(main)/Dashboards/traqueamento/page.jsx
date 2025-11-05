@@ -255,8 +255,14 @@ export default function TraqueamentoPage() {
                 className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full max-w-xs p-2" 
                 disabled={isDisabled}
             >
-                <option value="">Selecione um lançamento {launchName ? `(${launchName})` : ''}</option> 
-                {launches.map(l => <option key={l.id} value={l.id}>{l.codigo} ({l.status})</option>)}
+                <option value="" disabled={!isDisabled}>
+                    {isDisabled ? 'Carregando Lançamentos...' : 'Selecione um Lançamento'}
+                </option>
+                {launches.map(launch => (
+                    <option key={launch.id} value={launch.id}>
+                        {launch.codigo} ({launch.nome})
+                    </option>
+                ))}
             </select>
         );
         setHeaderContent({ title: 'Traqueamento de Trafego', controls: launchSelector });
@@ -342,16 +348,32 @@ export default function TraqueamentoPage() {
                                 />
                             </div>
                             
-                            {/* Gráfico de Pizza */}
+                            {/* Gráfico de Rosca (Donut Chart) */}
+                            {/* CORREÇÃO DO ALERTA DO CONSOLE: Adicionado um Fragment condicional para garantir que o ResponsiveContainer só renderize após o carregamento dos dados, evitando o erro de width/height -1. */}
+                            {/* A classe h-80 é suficiente para o minHeight=320 */}
                             <div className="lg:col-span-2 h-80 w-full">
-                                <ResponsiveContainer width="100%" height="100%" minHeight={320}>
+                                {kpis && (
+                                    
+                                
+                                <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
-                                        <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius="80%" labelLine={false} >
+                                        {/* Adicionado innerRadius="60%" para transformar em gráfico de rosca */}
+                                        <Pie 
+                                            data={chartData} 
+                                            dataKey="value" 
+                                            nameKey="name" 
+                                            cx="50%" 
+                                            cy="50%" 
+                                            innerRadius="60%" 
+                                            outerRadius="80%" 
+                                            labelLine={false} 
+                                        >
                                             {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
                                         </Pie>
                                         <Legend />
                                     </PieChart>
                                 </ResponsiveContainer>
+                                )}
                             </div>
                         </div>
                     </section>

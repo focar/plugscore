@@ -54,9 +54,9 @@ export default function GeradorDeLinksPage() {
 
     const initialFormData = {
         baseURL: '', baseAtalho: '',
-        insc_suffix: '-org', insc_shortLinkBase: 'jornadanovaera', insc_redirectPrefix: 'kr',
-        vend_suffix: '-mfm', vend_shortLinkBase: 'jornadanovaera', vend_redirectPrefix: 'kr',
-        bole_suffix: '-boleto-aviso', bole_shortLinkBase: 'mfm_bp', bole_redirectPrefix: 'kr'
+        insc_suffix: '-org', insc_shortLinkBase: 'evento', insc_redirectPrefix: 'Redirecionador',
+        vend_suffix: '-mfm', vend_shortLinkBase: 'evento', vend_redirectPrefix: 'Redirecionador',
+        bole_suffix: '-boleto-aviso', bole_shortLinkBase: 'mfm_bp', bole_redirectPrefix: 'Redirecionador'
     };
 
     const [formData, setFormData] = useState(initialFormData);
@@ -390,11 +390,11 @@ export default function GeradorDeLinksPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label htmlFor="baseURL">Endereço Principal</label>
-                        <Input id="baseURL" type="text" value={formData.baseURL} onChange={handleInputChange} placeholder="https://eduser.com.br" />
+                        <Input id="baseURL" type="text" value={formData.baseURL} onChange={handleInputChange} placeholder="https://seusite.com.br" />
                     </div>
                     <div>
                         <label htmlFor="baseAtalho">Complemento Base do Endereço</label>
-                        <Input id="baseAtalho" type="text" value={formData.baseAtalho} onChange={handleInputChange} placeholder="novaera16" />
+                        <Input id="baseAtalho" type="text" value={formData.baseAtalho} onChange={handleInputChange} placeholder="nome/edição" />
                     </div>
                 </div>
             </fieldset>
@@ -405,7 +405,7 @@ export default function GeradorDeLinksPage() {
                     {['insc', 'vend', 'bole'].map(section => (
                         <React.Fragment key={section}>
                             <h3 className="md:col-span-3 font-medium text-lg mt-4 border-b dark:border-gray-600 pb-1 capitalize">
-                                {section === 'insc' ? 'Inscrição' : section === 'vend' ? 'Vendas' : 'Boleto'}
+                                {section === 'insc' ? 'Inscrição' : section === 'vend' ? 'Vendas' : 'Outro'}
                             </h3>
                             <div>
                                 <label htmlFor={`${section}_suffix`}>Sufixo URL</label>

@@ -213,7 +213,7 @@ function ScorePageContent() {
                         <FaChevronLeft /> Voltar
                     </button>
                     <button onClick={() => handleInternalNavigate (basePath)} disabled={!contextLaunchId} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 disabled:opacity-50">
-                        <FaBullhorn /> Leads Pagos
+                        <FaBullhorn /> Score
                     </button>
                     <button onClick={() => handleInternalNavigate(`${basePath}/mql`)} disabled={!contextLaunchId} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 disabled:opacity-50">
                         <FaChartBar /> MQL

@@ -200,7 +200,7 @@ function DetalhePagoContent() {
                                 {sortedData.map(item => ( 
                                     <tr key={item.utm_content || Math.random()} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                         <td className="p-3 font-medium">{item.utm_content || '(not set)'}</td>
-                                        <td className="p-3 text-right font-bold text-blue-500 dark:text-blue-400">{item.total_leads.toLocaleString('pt-BR')}</td>
+                                        <td className="p-3 text-right font-bold text-white dark:text-white">{item.total_leads.toLocaleString('pt-BR')}</td>
                                     </tr>
                                 ))}
                             </tbody>

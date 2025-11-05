@@ -19,10 +19,10 @@ export default function Sidebar({ userProfile }) {
         DASHBOARDS: [
             { name: 'Traqueamento de Leads', href: '/Dashboards/traqueamento' },
             { name: 'Analise de Criativos', href: '/Dashboards/analise-criativos' },
-            { name: 'Criativos por Score', href: '/Dashboards/criativos-por-score' },
-            { name: 'Campanha por Hora', href: '/Dashboards/campanha-hora' },
+    //        { name: 'Criativos por Score', href: '/Dashboards/criativos-por-score' },
+     //       { name: 'Campanha por Hora', href: '/Dashboards/campanha-hora' },
             { name: 'Otimizador de Campanha', href: '/Dashboards/otimizador-campanhas/' },
-            { name: 'Campanhas e Criativos', href: '/Dashboards/campanhas-criativos' },
+            { name: 'Analise de UTMs', href: '/Dashboards/analise-utms' },
             //{ name: 'Resumo Diario', href: '/Dashboards/resumo-diario' },
             { name: 'Evolução de Canal', href: '/Dashboards/evolucao-de-canal' },
             { name: 'Lead Scoring', href: '/Dashboards/lead-scoring' },
@@ -30,7 +30,7 @@ export default function Sidebar({ userProfile }) {
             { name: 'Perfil de MQL', href: '/Dashboards/perfil-de-mql' },
             { name: 'Compradores', href: '/Dashboards/origem-compradores' },
             { name: 'Análise por IA', href: '/Dashboards/analise-ia' },
-            { name: 'Debriefing de Conversão', href: '/Dashboards/debriefing-conversao' },
+            { name: 'Debriefing Completo', href: '/Dashboards/debriefing-completo' },
         ],
         OPERACIONAL: [
             { name: 'Lançamentos', href: '/Operacional/lancamentos' },

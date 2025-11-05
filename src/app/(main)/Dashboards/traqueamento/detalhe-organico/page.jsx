@@ -221,7 +221,7 @@ function DetalheOrganicoContent() {
                                 {data.map((item, index) => (
                                     <tr key={item.utm_source_name || index} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                         <td className="p-3 font-medium">{item.utm_source_name || '(not set)'}</td>
-                                        <td className="p-3 text-right font-bold text-green-500 dark:text-green-400">{item.total_leads.toLocaleString('pt-BR')}</td>
+                                        <td className="p-3 text-right font-bold text-white dark:text-white">{item.total_leads.toLocaleString('pt-BR')}</td>
                                     </tr>
                                 ))}
                             </tbody>
