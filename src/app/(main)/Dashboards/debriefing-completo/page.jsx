@@ -44,7 +44,7 @@ function Modal({ isOpen, onClose, title, children }) {
                 <div className="flex justify-between items-center border-b p-4 dark:border-gray-600">
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
                     <button onClick={onClose} className="p-1 rounded-full text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
-                        <X size={20} />
+                        <X size={18} />
                     </button>
                 </div>
                 <div className="p-6 max-h-[70vh] overflow-y-auto text-gray-700 dark:text-gray-300 space-y-4">
@@ -58,7 +58,7 @@ const Spinner = () => <div className="flex justify-center items-center h-60"><di
 const KpiCard = ({ title, value, subtext }) => (
     <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow">
         <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{title}</p>
-        <p className="mt-1 text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white">{value}</p>
+        <p className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">{value}</p>
         {subtext && <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{subtext}</p>}
     </div>
 );
@@ -68,14 +68,14 @@ const SectionHeader = ({ icon, title }) => {
         return (
              <div className="flex items-center gap-2 md:gap-3 pb-2 border-b-2 border-blue-500 mb-4">
                  <div className="w-6 h-6 bg-gray-300 rounded"></div>
-                 <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">{title}</h2>
+                 <h2 className="text-sm md:text-base font-bold text-gray-900 dark:text-white">{title}</h2>
              </div>
         );
     }
     return (
         <div className="flex items-center gap-2 md:gap-3 pb-2 border-b-2 border-blue-500 mb-4">
             <IconComponent className="text-blue-500" size={24} />
-            <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">{title}</h2>
+            <h2 className="text-xl md:text-xl font-bold text-gray-900 dark:text-white">{title}</h2>
         </div>
     );
 };

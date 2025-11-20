@@ -14,11 +14,11 @@ import { Loader2 } from 'lucide-react';
 const KpiCard = ({ title, value, icon: Icon }) => (
     <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow-sm flex items-center gap-3 sm:gap-4">
         <div className="bg-blue-100 dark:bg-gray-700 p-2 sm:p-3 rounded-full">
-            <Icon className="text-blue-600 dark:text-blue-400 text-xl sm:text-2xl" />
+            <Icon className="text-blue-600 dark:text-blue-400 text-xl sm:text-xl" />
         </div>
         <div>
             <p className="text-xs sm:text-base text-gray-500 dark:text-gray-400">{title}</p>
-            <p className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100">{value}</p>
+            <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">{value}</p>
         </div>
     </div>
 );
