@@ -34,15 +34,13 @@ export default function HomePage() {
             
             {/* LADO ESQUERDO: Slogan Alinhado à Esquerda */}
             <div className="flex flex-col items-start text-right text-xl sm:text-3xl md:text-5xl font-light tracking-[0.15em] text-slate-500 dark:text-gray-400 lowercase space-y-0 sm:space-y-1">
-              <p>qualifique,</p>
-              <p>pontue,</p>
-              <p>converta.</p>
+              <p>qualifique, pontue, converta.</p>
             </div>
 
             {/* LADO DIREITO: Clássico */}
             <div className={`${cursiveFont.className} text-[#4fc0db] text-10xl sm:text-10xl md:text-9xl -rotate-12 pt-2`}>
              {/*Perpétuo*/}
-             Clássico
+            {/*Classico*/}
             </div>
 
         </div>
