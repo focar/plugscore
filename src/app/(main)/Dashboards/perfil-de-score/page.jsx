@@ -9,7 +9,7 @@ import { Users, UserCheck, Percent, HelpCircle, X, ChevronsUp, AlertTriangle, Ch
 import { FaFileCsv } from "react-icons/fa"; 
 import toast, { Toaster } from 'react-hot-toast';
 
-// --- Constantes e Configurações (ATUALIZADO PARA 4 CATEGORIAS) ---
+// --- Constantes e Configurações ---
 const scoreCategories = [
     { key: 'premium', name: 'Premium (85-100)', color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-500/10', borderColor: 'border-purple-600' },
     { key: 'quente', name: 'Quente (70-84)', color: 'text-red-500', bgColor: 'bg-red-50 dark:bg-red-500/10', borderColor: 'border-red-500' },
@@ -36,8 +36,20 @@ const ScoreProfileCard = ({ questionData }) => {
     const totalResponses = useMemo(() => questionData.answers?.reduce((sum, answer) => sum + answer.lead_count, 0) || 0, [questionData.answers]);
     if (!questionData.answers || totalResponses === 0) return null;
 
-    const getDisplayText = (answerText) => {
-        try { const parsed = JSON.parse(answerText); if (parsed?.resposta) return parsed.resposta; } catch (e) { }
+const getDisplayText = (answerText) => {
+        // 1. Se já for objeto
+        if (typeof answerText === 'object' && answerText !== null) {
+            return answerText.resposta !== undefined ? answerText.resposta : JSON.stringify(answerText);
+        }
+        
+        // 2. Se for texto, tenta converter
+        try {
+            const parsed = JSON.parse(answerText);
+            // CORREÇÃO CRÍTICA AQUI: Verifica se não é undefined, aceitando vazio
+            if (parsed?.resposta !== undefined) return parsed.resposta;
+        } catch (e) { }
+        
+        // 3. Retorno padrão
         return answerText; 
     };
 
@@ -76,11 +88,12 @@ export default function PerfilDeScorePage() {
 
     const [launches, setLaunches] = useState([]);
     const [selectedLaunch, setSelectedLaunch] = useState('');
-    const [selectedScore, setSelectedScore] = useState('premium'); // Default agora é Premium
+    const [selectedScore, setSelectedScore] = useState('premium');
 
     const [dashboardData, setDashboardData] = useState(null);
     const [isLoadingLaunches, setIsLoadingLaunches] = useState(true);
-    const [isLoadingData, setIsLoadingData] = useState(false);
+    // 1. AQUI ESTÁ A DEFINIÇÃO CORRETA:
+    const [isLoadingData, setIsLoadingData] = useState(false); 
     const [isExporting, setIsExporting] = useState(false);
 
     useEffect(() => {
@@ -112,7 +125,8 @@ export default function PerfilDeScorePage() {
                 setLaunches([]);
             } finally {
                 setIsLoadingLaunches(false);
-                setIsDataLoading(false); 
+                // 2. CORREÇÃO AQUI: Trocado setIsDataLoading por setIsLoadingData
+                setIsLoadingData(false); 
             }
         };
         fetchLaunches();
@@ -220,7 +234,7 @@ export default function PerfilDeScorePage() {
                 </div>
             </section>
 
-            {/* Seleção de Score e Exportação (GRID ATUALIZADO PARA 4 COLUNAS) */}
+            {/* Seleção de Score e Exportação */}
             <section className="bg-gray-100 dark:bg-gray-800/50 p-3 sm:p-4 rounded-lg shadow-sm">
                 <div className="flex flex-col md:flex-row gap-3 sm:gap-4">
                     <div className="flex-grow grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">

@@ -1,4 +1,4 @@
-// src/app/(main)/Ferramentas/ferramentas-de-teste/page.jsx
+// F:\plugscore\src\app\(main)\Ferramentas\ferramentas-de-teste\page.jsx
 'use client';
 
 import React, { useState, useEffect, useContext, useCallback } from 'react';
@@ -18,12 +18,16 @@ export default function FerramentasDeTestePage() {
     const supabase = createClientComponentClient();
     const [lancamentos, setLancamentos] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    // Estado para mensagens individuais de cada card
     const [processingStatus, setProcessingStatus] = useState({}); 
+    // Bloqueio global para evitar cliques simultâneos
     const [isProcessing, setIsProcessing] = useState(false); 
 
+    // --- CARREGAMENTO DE DADOS ---
     const fetchLancamentos = useCallback(async () => {
         setLoading(true);
-        let query = supabase.from('lancamentos').select('id, nome, codigo, modalidade');
+        let query = supabase.from('lancamentos').select('id, nome, codigo');
 
         if (selectedClientId && selectedClientId !== 'all') {
             query = query.eq('cliente_id', selectedClientId);
@@ -49,137 +53,197 @@ export default function FerramentasDeTestePage() {
         return () => setHeaderContent({ title: '', controls: null });
     }, [setHeaderContent, fetchLancamentos, userProfile]);
 
+    // --- HELPER GENÉRICO PARA RPC ---
     const runRpc = async (launchCode, functionName) => {
         const { data, error } = await supabase.rpc(functionName, { p_launch_code: launchCode });
         if (error) throw new Error(`Erro em ${functionName}: ${error.message}`);
         return data;
     };
 
-    // --- FUNÇÕES DE AÇÃO ---
-
-    // 1. CLÁSSICO: Processar Check-ins
-    const handleProcessCheckins = async (launchCode) => {
+    // --- HELPER GENÉRICO PARA GERENCIAR ESTADO VISUAL ---
+    // Esta função evita repetir o código de try/catch/loading para cada botão
+    const executeOperation = async (launchCode, startMessage, operationFn) => {
         if (isProcessing) return;
-        setIsProcessing(true);
-        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'Reprocessando Clássico...', type: 'info' } }));
-        try {
-            await runRpc(launchCode, 'reset_scores_e_respostas');
-            await runRpc(launchCode, 'reset_status_checkins');
-            const finalMessage = await runRpc(launchCode, 'transformar_checkins');
-            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: finalMessage, type: 'success' } }));
-        } catch (err) {
-            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    // 2. PERPÉTUO: Resetar (Reprocessar)
-    const handleResetPerpetuo = async (launchCode) => {
-        if (isProcessing) return;
-        setIsProcessing(true);
-        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'Resetando para reprocessar...', type: 'info' } }));
-        try {
-            // Chama a função de RESET que criaamos agora
-            const msgReset = await runRpc(launchCode, 'resetar_processamento_perpetuo');
-            
-            // Opcional: Se quiser já rodar o processamento em seguida automaticamente:
-            // await supabase.rpc('processar_carga_perpetuo', { p_limite: 1000 });
-            // const msgFinal = "Resetado e Reprocessado com sucesso!";
-            
-            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: msgReset, type: 'success' } }));
-        } catch (err) {
-            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    // 3. PERPÉTUO: Limpeza Total (Destrutiva)
-    const handleCleanPerpetuo = async (launchCode) => {
-        if (isProcessing) return;
-        const confirm1 = window.prompt(`AÇÃO DESTRUTIVA!\nVai apagar TUDO (inclusive a planilha importada).\nDigite "${launchCode}" para confirmar:`);
-        if (confirm1 !== launchCode) { toast.error('Cancelado.'); return; }
         
         setIsProcessing(true);
-        setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: `Limpando tudo...`, type: 'info' } }));
+        setProcessingStatus(prev => ({ 
+            ...prev, 
+            [launchCode]: { message: startMessage, type: 'info' } 
+        }));
+
         try {
-            const message = await runRpc(launchCode, 'limpar_dados_perpetuo');
-            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: message, type: 'success' } }));
+            // Executa a função passada como argumento
+            const resultMessage = await operationFn();
+            
+            setProcessingStatus(prev => ({ 
+                ...prev, 
+                [launchCode]: { message: resultMessage, type: 'success' } 
+            }));
+            
+            // Se foi uma exclusão total, recarrega a lista
+            if (startMessage.includes("Apagando TUDO")) {
+                fetchLancamentos();
+            }
+
         } catch (err) {
-            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: err.message, type: 'error' } }));
+            setProcessingStatus(prev => ({ 
+                ...prev, 
+                [launchCode]: { message: err.message, type: 'error' } 
+            }));
         } finally {
             setIsProcessing(false);
         }
     };
 
-    // Funções auxiliares do Clássico (Mantidas)
-    const handleClearScores = async (c) => { /* ... igual ... */ }; 
-    const handleResetStatus = async (c) => { /* ... igual ... */ };
-    const handleClearBuyers = async (c) => { /* ... igual ... */ };
-    const handleDeleteAllData = async (c) => { /* ... igual ... */ };
+    // --- AÇÕES DOS BOTÕES ---
 
-    if (userProfile?.role !== 'admin') return <div className="p-6 text-red-500">Acesso negado.</div>;
+    // 1. Processamento Completo (3 Passos)
+    const handleProcessCheckins = (launchCode) => {
+        executeOperation(launchCode, 'Iniciando reprocessamento...', async () => {
+            // Passo 1
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'Passo 1/3: Limpando scores...', type: 'info' } }));
+            await runRpc(launchCode, 'reset_scores_e_respostas');
+            
+            // Passo 2
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'Passo 2/3: Reiniciando status...', type: 'info' } }));
+            await runRpc(launchCode, 'reset_status_checkins');
+
+            // Passo 3
+            setProcessingStatus(prev => ({ ...prev, [launchCode]: { message: 'Passo 3/3: Calculando scores...', type: 'info' } }));
+            return await runRpc(launchCode, 'transformar_checkins');
+        });
+    };
+
+    // 2. Limpar Scores (Simples)
+    const handleClearScores = (launchCode) => {
+        executeOperation(launchCode, 'Limpando scores...', async () => {
+            return await runRpc(launchCode, 'reset_scores_e_respostas');
+        });
+    };
+    
+    // 3. Reiniciar Status (Simples)
+    const handleResetStatus = (launchCode) => {
+        executeOperation(launchCode, 'Reiniciando status...', async () => {
+            return await runRpc(launchCode, 'reset_status_checkins');
+        });
+    };
+
+    // 4. Limpar Compradores (Com Confirmação)
+    const handleClearBuyers = (launchCode) => {
+        const confirm = window.prompt(`LIMPEZA DE COMPRADORES!\n\nVocê vai remover o status 'comprador' dos leads do lançamento "${launchCode}".\n\nDigite o código do lançamento para confirmar:`);
+        if (confirm !== launchCode) return toast.error('Cancelado. Código incorreto.');
+
+        executeOperation(launchCode, 'Limpando compradores...', async () => {
+            return await runRpc(launchCode, 'limpar_dados_compradores');
+        });
+    };
+
+    // 5. Apagar TUDO (Com Confirmação Forte)
+    const handleDeleteAllData = (launchCode) => {
+        const confirm = window.prompt(`⚠️ AÇÃO DESTRUTIVA! ⚠️\n\nVocê vai apagar TUDO (Leads, Respostas, Check-ins) do lançamento "${launchCode}".\nIsso não pode ser desfeito.\n\nDigite o código do lançamento para confirmar:`);
+        if (confirm !== launchCode) return toast.error('Cancelado. Código incorreto.');
+
+        executeOperation(launchCode, 'Apagando TUDO...', async () => {
+            return await runRpc(launchCode, 'limpar_dados_lancamento');
+        });
+    };
+
+    // --- RENDER ---
+    if (userProfile?.role !== 'admin') {
+        return <div className="p-6 text-red-500 font-bold">Acesso negado. Esta área é restrita.</div>;
+    }
 
     return (
         <div className="p-6 space-y-6">
             <Toaster position="top-center" />
-            <div className="bg-gray-100 dark:bg-gray-900/50 p-4 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400">Ferramentas de Gestão de Dados de Teste.</p>
+            
+            {/* Cabeçalho de Instrução */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 rounded-lg">
+                <h2 className="text-blue-800 dark:text-blue-200 font-bold mb-1">Painel Operacional</h2>
+                <p className="text-sm text-blue-600 dark:text-blue-300">
+                    Use estas ferramentas para manutenção de lançamentos. Cuidado com as ações destrutivas (botões Roxo e Laranja).
+                </p>
             </div>
 
-            {loading ? <p className="text-center py-8 dark:text-gray-300">Carregando...</p> :
-                <div className="space-y-4">
+            {loading ? (
+                <div className="flex justify-center py-10"><span className="animate-pulse text-gray-500">Carregando dados...</span></div>
+            ) : lancamentos.length === 0 ? (
+                <p className="text-center py-8 text-gray-500">Nenhum lançamento encontrado.</p>
+            ) : (
+                <div className="grid grid-cols-1 gap-6">
                     {lancamentos.map(launch => (
-                        <div key={launch.id} className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4">
+                        <div key={launch.id} className="bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700 rounded-lg p-5">
                             
+                            {/* Área de Status da Ação */}
                             {processingStatus[launch.codigo] && (
-                                <div className={`mb-3 p-3 text-sm rounded-md ${
-                                    processingStatus[launch.codigo].type === 'error' ? 'bg-red-100 text-red-800' :
-                                    'bg-green-100 text-green-800'
+                                <div className={`mb-4 p-3 text-sm rounded-md flex items-center gap-2 border ${
+                                    processingStatus[launch.codigo].type === 'error' ? 'bg-red-50 border-red-200 text-red-700' :
+                                    processingStatus[launch.codigo].type === 'info' ? 'bg-blue-50 border-blue-200 text-blue-700' : 
+                                    'bg-green-50 border-green-200 text-green-700'
                                 }`}>
+                                    {processingStatus[launch.codigo].type === 'info' && <span className="animate-spin">⏳</span>}
                                     {processingStatus[launch.codigo].message}
                                 </div>
                             )}
 
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                <div>
-                                    <h3 className="font-bold text-lg font-mono text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                                        {launch.codigo}
-                                        {launch.modalidade === 'PERPETUO' && <span className="text-[10px] bg-cyan-900 text-cyan-200 px-1 py-0.5 rounded uppercase border border-cyan-700">Perpétuo</span>}
-                                    </h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{launch.nome}</p>
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                                {/* Informações do Lançamento */}
+                                <div className="min-w-[200px]">
+                                    <h3 className="font-bold text-xl font-mono text-gray-800 dark:text-gray-100 tracking-tight">{launch.codigo}</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{launch.nome}</p>
                                 </div>
-                                
-                                <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end">
-                                    
-                                    {/* --- BOTÕES PERPÉTUO --- */}
-                                    {launch.modalidade === 'PERPETUO' ? (
-                                        <>
-                                            {/* Botão de Reprocessar (Seguro) */}
-                                            <button disabled={isProcessing} onClick={() => handleResetPerpetuo(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-wait">
-                                                <RotateCwIcon /> Reprocessar
-                                            </button>
-                                            
-                                            {/* Botão de Limpar Tudo (Perigoso) */}
-                                            <button disabled={isProcessing} onClick={() => handleCleanPerpetuo(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-wait">
-                                                <TrashIcon /> Limpar TUDO
-                                            </button>
-                                        </>
-                                    ) : (
-                                        // --- BOTÕES CLÁSSICO (Mantidos) ---
-                                        <button disabled={isProcessing} onClick={() => handleProcessCheckins(launch.codigo)} className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-wait">
-                                            <PlayIcon /> Processar
-                                        </button>
-                                        // ... outros botões clássicos ...
-                                    )}
 
+                                {/* Barra de Ferramentas */}
+                                <div className="flex flex-wrap gap-2 items-center">
+                                    <div className="flex gap-2 mr-4 pr-4 border-r border-gray-200 dark:border-gray-700">
+                                        <button disabled={isProcessing} onClick={() => handleProcessCheckins(launch.codigo)} 
+                                            className="btn-tool bg-green-600 hover:bg-green-700 text-white">
+                                            <PlayIcon /> Processar Check-ins
+                                        </button>
+                                        <button disabled={isProcessing} onClick={() => handleResetStatus(launch.codigo)} 
+                                            className="btn-tool bg-yellow-500 hover:bg-yellow-600 text-white">
+                                            <RotateCwIcon /> Reiniciar Status
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="flex gap-2">
+                                        <button disabled={isProcessing} onClick={() => handleClearScores(launch.codigo)} 
+                                            className="btn-tool bg-gray-600 hover:bg-gray-700 text-white">
+                                            <TrashIcon /> Limpar Scores
+                                        </button>
+                                        <button disabled={isProcessing} onClick={() => handleClearBuyers(launch.codigo)} 
+                                            className="btn-tool bg-orange-600 hover:bg-orange-700 text-white">
+                                            <EraserIcon /> Limpar Compradores
+                                        </button>
+                                        <button disabled={isProcessing} onClick={() => handleDeleteAllData(launch.codigo)} 
+                                            className="btn-tool bg-purple-700 hover:bg-purple-800 text-white">
+                                            <AlertTriangleIcon /> Apagar TUDO
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     ))}
                 </div>
-            }
+            )}
+            
+            {/* Estilos locais para botões limpos */}
+            <style jsx>{`
+                .btn-tool {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    padding: 0.5rem 0.75rem;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    border-radius: 0.375rem;
+                    transition: all 0.2s;
+                }
+                .btn-tool:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+            `}</style>
         </div>
     );
 }
